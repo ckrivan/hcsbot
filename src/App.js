@@ -1,0 +1,975 @@
+import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import './index.css';
+
+// Use relative API routes for Vercel deployment
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? '/api'
+  : (process.env.REACT_APP_API_URL || 'http://localhost:8000');
+
+const DEBUG_MODE = process.env.NODE_ENV === 'development' || window.location.search.includes('debug=true');
+
+// Debug logging
+console.log('Environment Info:', {
+  NODE_ENV: process.env.NODE_ENV,
+  REACT_APP_API_URL: process.env.REACT_APP_API_URL,
+  API_BASE_URL
+});
+
+function App() {
+  const [messages, setMessages] = useState([]);
+  const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [systemStatus, setSystemStatus] = useState('initializing');
+  const [sampleQuestions, setSampleQuestions] = useState([]);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [adminLoggedIn, setAdminLoggedIn] = useState(false);
+  const [feedbackData, setFeedbackData] = useState([]);
+  const [showChangelog, setShowChangelog] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [authError, setAuthError] = useState('');
+  const messagesEndRef = useRef(null);
+
+  // Password configuration - handles spaces and special characters
+  const APP_PASSWORD = process.env.REACT_APP_ACCESS_PASSWORD || 'I L0V3 P!ZZ@$$$';
+
+  // Version tracking for changelog
+  const CURRENT_VERSION = "1.3.0";
+  const CHANGELOG = {
+    "1.3.0": {
+      title: "Apple Style Guide Integration",
+      date: "2025-08-21",
+      features: [
+        "📘 Official Apple Style Guide integrated into knowledge base",
+        "✨ Authoritative Apple terminology guidance (3,276 searchable chunks)",
+        "🔤 Correct usage for \"sign-in window\" vs \"login window\"",
+        "⚙️ \"System Settings\" vs \"System Preferences\" clarification", 
+        "📋 Apple interface conventions and style standards",
+        "🔄 System reload functionality for processing new documents"
+      ]
+    },
+    "1.2.0": {
+      title: "Enhanced Search Quality & Admin Dashboard",
+      date: "2025-08-21",
+      features: [
+        "🎯 Much smarter search filtering - no more irrelevant results!",
+        "🚫 Automatic detection of unsupported topics (Jamf Security Portal, etc.)",
+        "📊 Admin dashboard to view user feedback",
+        "💾 Persistent feedback storage across restarts",
+        "👆 Clickable suggested questions with visual indicators",
+        "🔧 Improved similarity threshold (0.4) for better accuracy"
+      ]
+    }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Check for existing authentication session
+  useEffect(() => {
+    const savedAuth = sessionStorage.getItem('hcs_authenticated');
+    if (savedAuth === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      checkSystemHealth();
+      fetchSampleQuestions();
+
+      // Initial welcome message
+      setMessages([
+        {
+          type: 'assistant',
+          content:
+            "Hello! I'm your HCS Apple Technology Assistant. I can help you with questions about Apple device management, Jamf Pro, iOS deployment, and more based on our comprehensive documentation.",
+          sources: [],
+          timestamp: Date.now(),
+        },
+      ]);
+    }
+  }, [isAuthenticated]);
+
+  // Mobile-friendly API call with fallback
+  const makeApiCall = async (url, options = {}) => {
+    // First try with axios
+    try {
+      return await axios.get(url, {
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        ...options
+      });
+    } catch (axiosError) {
+      console.warn('Axios failed, trying fetch:', axiosError.message);
+      
+      // Fallback to fetch for iOS Safari
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          mode: 'cors',
+          credentials: 'omit', // Don't send credentials for mobile compatibility
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        return { data }; // Mimic axios response structure
+      } catch (fetchError) {
+        console.error('Fetch also failed:', fetchError);
+        throw fetchError;
+      }
+    }
+  };
+
+  const checkSystemHealth = async () => {
+    try {
+      console.log('Checking system health at:', `${API_BASE_URL}/health`);
+      console.log('User agent:', navigator.userAgent);
+      
+      const response = await makeApiCall(`${API_BASE_URL}/health`);
+      setSystemStatus(response.data.initialized ? 'ready' : 'initializing');
+      console.log('System health check successful:', response.data);
+    } catch (error) {
+      console.error('Health check failed:', error);
+      console.error('API URL:', API_BASE_URL);
+      console.error('Error details:', error.response || error.message);
+      console.error('Full error object:', error);
+      
+      setSystemStatus('error');
+    }
+  };
+
+  const fetchSampleQuestions = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/sample-questions`);
+      setSampleQuestions(response.data.questions || []);
+    } catch (error) {
+      console.error('Failed to fetch sample questions:', error);
+    }
+  };
+
+  const sendMessage = async text => {
+    if (!text.trim() || isLoading) return;
+
+    const userMessage = {
+      type: 'user',
+      content: text,
+      sources: [],
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputText('');
+    setIsLoading(true);
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/chat`, {
+        question: text,
+      });
+
+      console.log('Received sources:', response.data.sources); // Debug log
+
+      const assistantMessage = {
+        type: 'assistant',
+        content: response.data.answer,
+        sources: response.data.sources || [],
+        timestamp: Date.now(), // Add timestamp to ensure unique rendering
+        query: text, // Store the original query for feedback
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Chat error:', error);
+
+      let errorMessage =
+        'I apologize, but I encountered an error processing your question.';
+
+      if (error.response?.status === 503) {
+        errorMessage =
+          'The system is still initializing. Please wait a moment and try again.';
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
+
+      const errorResponse = {
+        type: 'assistant',
+        content: errorMessage,
+        sources: [],
+        timestamp: Date.now(), // Add timestamp to ensure unique rendering
+      };
+
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const submitFeedback = async (query, response, feedbackType, description) => {
+    try {
+      await axios.post(`${API_BASE_URL}/feedback`, {
+        query,
+        response,
+        feedback_type: feedbackType,
+        description
+      });
+      alert('Thank you for your feedback!');
+    } catch (error) {
+      console.error('Feedback error:', error);
+      alert('Error submitting feedback. Please try again.');
+    }
+  };
+
+  const adminLogin = async (username, password) => {
+    try {
+      await axios.post(`${API_BASE_URL}/admin/login`, { username, password });
+      setAdminLoggedIn(true);
+      await loadFeedbackData(username, password);
+    } catch (error) {
+      alert('Invalid credentials');
+    }
+  };
+
+  const loadFeedbackData = async (username = 'hcs', password = 'I love P!zz@') => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/admin/feedback?username=${username}&password=${password}`);
+      setFeedbackData(response.data.feedback);
+    } catch (error) {
+      console.error('Error loading feedback:', error);
+    }
+  };
+
+  // Check for admin access via URL hash and version updates
+  useEffect(() => {
+    const checkHash = () => {
+      const hash = window.location.hash;
+      if (hash === '#admin') {
+        setShowAdmin(true);
+      } else if (hash === '#changelog') {
+        setShowChangelog(true);
+      }
+    };
+    
+    // Check on mount
+    checkHash();
+    
+    // Listen for hash changes
+    window.addEventListener('hashchange', checkHash);
+    
+    // Check if user has seen the latest changelog (only for new visits)
+    const lastSeenVersion = localStorage.getItem('lastSeenVersion');
+    if (!lastSeenVersion || lastSeenVersion !== CURRENT_VERSION) {
+      // Show changelog after a short delay to avoid overwhelming users
+      setTimeout(() => setShowChangelog(true), 2000);
+    }
+    
+    // Cleanup
+    return () => window.removeEventListener('hashchange', checkHash);
+  }, []);
+
+  const handleSubmit = e => {
+    e.preventDefault();
+    sendMessage(inputText);
+  };
+
+  const handleSampleQuestion = question => {
+    sendMessage(question);
+  };
+
+  const handleKeyPress = e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
+
+  // Authentication functions
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (passwordInput === APP_PASSWORD) {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('hcs_authenticated', 'true');
+      setAuthError('');
+      setPasswordInput('');
+    } else {
+      setAuthError('Invalid password. Please try again.');
+      setPasswordInput('');
+    }
+  };
+
+  const handleSignOut = () => {
+    setIsAuthenticated(false);
+    sessionStorage.removeItem('hcs_authenticated');
+    setMessages([]);
+    setPasswordInput('');
+    setAuthError('');
+  };
+
+  const handlePasswordKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handlePasswordSubmit(e);
+    }
+  };
+
+  // No longer needed - using ReactMarkdown instead
+  // const formatContent = content => { ... }
+
+  const renderMessage = (message, index) => {
+    // Add click handler to the message div to catch clicks on numbered questions
+    const handleMessageClick = (e) => {
+      // Get the clicked element's text content
+      const clickedText = e.target.textContent || e.target.innerText || '';
+      
+      // Check if clicked text looks like a numbered question
+      const questionMatch = clickedText.match(/^\d+\.\s*(.+\?)$/);
+      if (questionMatch) {
+        const questionText = questionMatch[1].trim();
+        sendMessage(questionText);
+        e.stopPropagation();
+      }
+    };
+
+    return (
+      <div
+        key={`${index}-${message.timestamp || index}`}
+        className={`message ${message.type}`}
+        onClick={handleMessageClick}
+        style={{cursor: 'default'}}
+      >
+        <div className="content formatted-content">
+          <ReactMarkdown 
+            remarkPlugins={[remarkGfm]}
+            components={{
+            // Custom styling for markdown elements
+            h1: ({node, ...props}) => <h1 style={{color: '#1f2937', marginBottom: '0.5rem'}} {...props} />,
+            h2: ({node, ...props}) => <h2 style={{color: '#374151', marginBottom: '0.5rem', borderBottom: '2px solid #e5e7eb', paddingBottom: '0.25rem'}} {...props} />,
+            h3: ({node, ...props}) => <h3 style={{color: '#4b5563', marginBottom: '0.5rem'}} {...props} />,
+            code: ({node, inline, ...props}) => 
+              inline ? (
+                <code style={{backgroundColor: '#f3f4f6', padding: '0.125rem 0.25rem', borderRadius: '0.25rem', fontSize: '0.875rem'}} {...props} />
+              ) : (
+                <pre style={{backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'auto'}}>
+                  <code {...props} />
+                </pre>
+              ),
+            blockquote: ({node, ...props}) => <blockquote style={{borderLeft: '4px solid #3b82f6', paddingLeft: '1rem', margin: '1rem 0', fontStyle: 'italic'}} {...props} />,
+            ul: ({node, ...props}) => <ul style={{paddingLeft: '1.5rem', marginBottom: '0.5rem'}} {...props} />,
+            ol: ({node, ...props}) => <ol style={{paddingLeft: '1.5rem', marginBottom: '0.5rem'}} {...props} />,
+            li: ({node, ...props}) => {
+              // Check if this list item contains a question that should be clickable
+              const children = props.children;
+              const text = Array.isArray(children) ? children.join('') : children;
+              
+              // Check if it looks like a question (ends with ?)
+              if (typeof text === 'string' && text.trim().endsWith('?')) {
+                return (
+                  <li 
+                    style={{
+                      marginBottom: '0.5rem',
+                      cursor: 'pointer',
+                      padding: '0.75rem',
+                      borderRadius: '0.5rem',
+                      border: '2px solid #3b82f6',
+                      backgroundColor: '#eff6ff',
+                      transition: 'all 0.2s ease',
+                      listStyle: 'none',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = '#dbeafe';
+                      e.target.style.borderColor = '#2563eb';
+                      e.target.style.transform = 'translateY(-1px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = '#eff6ff';
+                      e.target.style.borderColor = '#3b82f6';
+                      e.target.style.transform = 'translateY(0px)';
+                    }}
+                  >
+                    <span style={{fontWeight: '500'}}>{children}</span>
+                    <span style={{
+                      color: '#3b82f6', 
+                      fontSize: '0.875rem', 
+                      marginLeft: '0.5rem',
+                      fontWeight: '500'
+                    }}>👆 Click to ask!</span>
+                  </li>
+                );
+              }
+              
+              return <li style={{marginBottom: '0.25rem'}} {...props} />;
+            },
+            hr: ({node, ...props}) => <hr style={{margin: '1.5rem 0', border: 'none', borderTop: '2px solid #e5e7eb'}} {...props} />,
+            strong: ({node, ...props}) => <strong style={{fontWeight: '600', color: '#1f2937'}} {...props} />,
+            p: ({node, ...props}) => {
+              // Check if this paragraph contains a numbered question that could be clickable
+              const children = props.children;
+              
+              // Handle case where the paragraph contains multiple children (like "1. " followed by question text)
+              if (Array.isArray(children) && children.length >= 2) {
+                const firstChild = children[0];
+                const secondChild = children[1];
+                
+                // Check if first child is a number pattern like "1. " and second is the question text
+                if (typeof firstChild === 'string' && typeof secondChild === 'string' && 
+                    /^\d+\.\s*$/.test(firstChild)) {
+                  const questionText = secondChild.trim();
+                  const numberPart = firstChild.trim();
+                  
+                  return (
+                    <p 
+                      style={{
+                        marginBottom: '0.75rem', 
+                        lineHeight: '1.6',
+                        cursor: 'pointer',
+                        padding: '0.5rem',
+                        borderRadius: '0.375rem',
+                        border: '1px solid #e5e7eb',
+                        backgroundColor: '#f9fafb',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onClick={() => {
+                        sendMessage(questionText);
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#f3f4f6';
+                        e.target.style.borderColor = '#3b82f6';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = '#f9fafb';
+                        e.target.style.borderColor = '#e5e7eb';
+                      }}
+                    >
+                      <strong>{numberPart}</strong> {questionText}
+                      <span style={{color: '#6b7280', fontSize: '0.875rem', marginLeft: '0.5rem'}}>👆 Click to ask</span>
+                    </p>
+                  );
+                }
+              }
+              
+              // Also check for single string format
+              const text = children?.[0];
+              if (typeof text === 'string') {
+                // Match both **1.** and 1. formats
+                const boldNumberMatch = text.match(/^\*\*\d+\.\*\*\s*(.+)$/);
+                const regularNumberMatch = text.match(/^\d+\.\s*(.+)$/);
+                
+                if (boldNumberMatch || regularNumberMatch) {
+                  const questionText = boldNumberMatch ? boldNumberMatch[1] : regularNumberMatch[1];
+                  const numberPart = boldNumberMatch ? 
+                    text.match(/^\*\*\d+\.\*\*/)[0].replace(/\*\*/g, '') : 
+                    text.match(/^\d+\./)[0];
+                  
+                  return (
+                    <p 
+                      style={{
+                        marginBottom: '0.75rem', 
+                        lineHeight: '1.6',
+                        cursor: 'pointer',
+                        padding: '0.5rem',
+                        borderRadius: '0.375rem',
+                        border: '1px solid #e5e7eb',
+                        backgroundColor: '#f9fafb',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onClick={() => {
+                        sendMessage(questionText);
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#f3f4f6';
+                        e.target.style.borderColor = '#3b82f6';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = '#f9fafb';
+                        e.target.style.borderColor = '#e5e7eb';
+                      }}
+                    >
+                      <strong>{numberPart}</strong> {questionText}
+                      <span style={{color: '#6b7280', fontSize: '0.875rem', marginLeft: '0.5rem'}}>👆 Click to ask</span>
+                    </p>
+                  );
+                }
+              }
+              return <p style={{marginBottom: '0.75rem', lineHeight: '1.6'}} {...props} />;
+            }
+          }}
+        >
+          {message.content}
+        </ReactMarkdown>
+      </div>
+      {message.sources && message.sources.length > 0 && (
+        <div className="sources">
+          <strong>Sources:</strong>
+          {message.sources.map((source, idx) => (
+            <div
+              key={`${source.filename}-${source.page_number}-${idx}`}
+              className="source-item"
+            >
+              <a
+                href={source.url || `https://hcsonline.com/images/PDFs/${source.filename}${source.page_number ? `#page=${source.page_number}` : ''}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="source-filename"
+              >
+                {source.filename}
+              </a>
+              <span className="source-page">{source.page_number ? `Page ${source.page_number}` : ''} ↗</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {message.type === 'assistant' && (
+        <div style={{marginTop: '0.5rem', textAlign: 'right'}}>
+          <button
+            onClick={() => {
+              const feedback = prompt('Was this response helpful? Please describe any issues:');
+              if (feedback) {
+                submitFeedback(
+                  message.query || 'Unknown query', 
+                  message.content, 
+                  'general', 
+                  feedback
+                );
+              }
+            }}
+            style={{
+              fontSize: '0.75rem',
+              padding: '0.25rem 0.5rem',
+              background: '#f3f4f6',
+              border: '1px solid #d1d5db',
+              borderRadius: '0.375rem',
+              cursor: 'pointer',
+              color: '#6b7280'
+            }}
+          >
+            📝 Feedback
+          </button>
+        </div>
+      )}
+      </div>
+    );
+  };
+
+  // Password Protection Component
+  const PasswordLogin = () => {
+    return (
+      <div className="container">
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          padding: '2rem'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '1rem',
+            padding: '3rem',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+            maxWidth: '500px',
+            width: '100%',
+            textAlign: 'center'
+          }}>
+            <div style={{ marginBottom: '2rem' }}>
+              <img src="/hcs-logo.png" alt="HCS Logo" style={{ 
+                height: '80px', 
+                marginBottom: '1rem',
+                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+              }} />
+              <h1 style={{ 
+                color: '#1f2937', 
+                marginBottom: '0.5rem',
+                fontSize: '2rem',
+                fontWeight: '600'
+              }}>
+                HCS Apple Technology Assistant
+              </h1>
+              <p style={{ 
+                color: '#6b7280', 
+                fontSize: '1.1rem',
+                margin: '0'
+              }}>
+                Enter the access password to continue
+              </p>
+            </div>
+            
+            <form onSubmit={handlePasswordSubmit} style={{ marginBottom: '1rem' }}>
+              <input
+                type="password"
+                placeholder="Enter password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                onKeyPress={handlePasswordKeyPress}
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  fontSize: '1.1rem',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '0.5rem',
+                  marginBottom: '1rem',
+                  textAlign: 'center',
+                  outline: 'none',
+                  transition: 'border-color 0.2s ease',
+                  ...(authError && { borderColor: '#dc2626' })
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.target.style.borderColor = authError ? '#dc2626' : '#e5e7eb'}
+                autoFocus
+              />
+              <button 
+                type="submit" 
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  fontSize: '1.1rem',
+                  fontWeight: '500',
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#2563eb'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#3b82f6'}
+              >
+                Access Chatbot
+              </button>
+            </form>
+            
+            {authError && (
+              <div style={{
+                backgroundColor: '#fef2f2',
+                color: '#dc2626',
+                padding: '0.75rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                border: '1px solid #fecaca'
+              }}>
+                {authError}
+              </div>
+            )}
+            
+            <div style={{ marginTop: '2rem', fontSize: '0.875rem', color: '#9ca3af' }}>
+              🔒 This chatbot contains confidential HCS documentation
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Admin Login Component
+  const AdminLogin = () => {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+
+    return (
+      <div style={{padding: '2rem', maxWidth: '400px', margin: '0 auto'}}>
+        <h2>Admin Login</h2>
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          adminLogin(username, password);
+        }}>
+          <input
+            type="text"
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            style={{width: '100%', padding: '0.5rem', marginBottom: '1rem'}}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{width: '100%', padding: '0.5rem', marginBottom: '1rem'}}
+          />
+          <button type="submit" style={{width: '100%', padding: '0.5rem', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '0.375rem'}}>
+            Login
+          </button>
+        </form>
+        <button onClick={() => setShowAdmin(false)} style={{marginTop: '1rem', color: '#3b82f6'}}>
+          Back to Chat
+        </button>
+      </div>
+    );
+  };
+
+  // Changelog Modal Component
+  const ChangelogModal = () => {
+    const currentChangelog = CHANGELOG[CURRENT_VERSION];
+    
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000
+      }}>
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '1rem',
+          padding: '2rem',
+          maxWidth: '600px',
+          maxHeight: '80vh',
+          overflow: 'auto',
+          margin: '1rem'
+        }}>
+          <div style={{display: 'flex', alignItems: 'center', marginBottom: '1rem'}}>
+            <span style={{fontSize: '2rem', marginRight: '1rem'}}>🎉</span>
+            <div>
+              <h2 style={{margin: 0, color: '#1f2937'}}>{currentChangelog.title}</h2>
+              <p style={{margin: 0, color: '#6b7280', fontSize: '0.875rem'}}>Version {CURRENT_VERSION} - {currentChangelog.date}</p>
+            </div>
+          </div>
+          
+          <div style={{marginBottom: '2rem'}}>
+            <h3 style={{color: '#374151', marginBottom: '1rem'}}>What's New:</h3>
+            <ul style={{listStyle: 'none', padding: 0}}>
+              {currentChangelog.features.map((feature, index) => (
+                <li key={index} style={{
+                  marginBottom: '0.75rem',
+                  padding: '0.75rem',
+                  backgroundColor: '#f3f4f6',
+                  borderRadius: '0.5rem',
+                  borderLeft: '4px solid #3b82f6'
+                }}>
+                  {feature}
+                </li>
+              ))}
+            </ul>
+          </div>
+          
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <button
+              onClick={() => {
+                localStorage.setItem('lastSeenVersion', CURRENT_VERSION);
+                setShowChangelog(false);
+              }}
+              style={{
+                padding: '0.75rem 1.5rem',
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.5rem',
+                cursor: 'pointer',
+                fontSize: '1rem'
+              }}
+            >
+              Got it, thanks! 🚀
+            </button>
+            <span style={{fontSize: '0.75rem', color: '#9ca3af'}}>
+              You can always view changes at yourdomain.com/#changelog
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Admin Dashboard Component
+  const AdminDashboard = () => (
+    <div style={{padding: '2rem'}}>
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem'}}>
+        <h2>Admin Dashboard - User Feedback</h2>
+        <div>
+          <button onClick={() => loadFeedbackData()} style={{marginRight: '1rem', padding: '0.5rem', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '0.375rem'}}>
+            Refresh
+          </button>
+          <button onClick={() => {setAdminLoggedIn(false); setShowAdmin(false);}} style={{padding: '0.5rem', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '0.375rem'}}>
+            Logout
+          </button>
+        </div>
+      </div>
+      
+      <p>Total Feedback Entries: <strong>{feedbackData.length}</strong></p>
+      
+      <div style={{maxHeight: '70vh', overflowY: 'auto'}}>
+        {feedbackData.length === 0 ? (
+          <p>No feedback entries yet.</p>
+        ) : (
+          feedbackData.map((feedback) => (
+            <div key={feedback.id} style={{border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem', backgroundColor: '#f9fafb'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem'}}>
+                <strong>#{feedback.id}</strong>
+                <small>{new Date(feedback.timestamp).toLocaleString()}</small>
+              </div>
+              <p><strong>Query:</strong> {feedback.query}</p>
+              <p><strong>Type:</strong> {feedback.feedback_type}</p>
+              <p><strong>Description:</strong> {feedback.description}</p>
+              <details style={{marginTop: '0.5rem'}}>
+                <summary style={{cursor: 'pointer', color: '#6b7280'}}>Response (click to expand)</summary>
+                <div style={{backgroundColor: 'white', padding: '0.5rem', marginTop: '0.5rem', borderRadius: '0.25rem', fontSize: '0.875rem'}}>
+                  {feedback.response}
+                </div>
+              </details>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
+  // Show password login if not authenticated
+  if (!isAuthenticated) {
+    return <PasswordLogin />;
+  }
+
+  if (showAdmin) {
+    return adminLoggedIn ? <AdminDashboard /> : <AdminLogin />;
+  }
+
+  return (
+    <div className="container">
+      {showChangelog && <ChangelogModal />}
+      {systemStatus !== 'ready' && (
+        <div className="status-banner">
+          {systemStatus === 'initializing' &&
+            'System is initializing... This may take a moment.'}
+          {systemStatus === 'error' && (
+            <div>
+              Unable to connect to the backend server.
+              <br />
+              <small>
+                API endpoint: {API_BASE_URL}
+                <br />
+                <small style={{fontSize: '11px', opacity: 0.7}}>
+                  ENV: {process.env.NODE_ENV} | 
+                  API_URL_ENV: {process.env.REACT_APP_API_URL || 'not set'}
+                </small>
+                {DEBUG_MODE && (
+                  <>
+                    <br />
+                    Debug: Add ?debug=true to URL for console logs
+                    <br />
+                    User Agent: {navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop'}
+                  </>
+                )}
+              </small>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="chat-container">
+        <div className="chat-header">
+          <div className="header-content">
+            <img src="/hcs-logo.png" alt="HCS Logo" className="hcs-logo" />
+            <div className="header-text">
+              <h1>HCS Apple Technology Assistant</h1>
+              <p>
+                Technical professionals. Trusted advisors. Ask me about Apple
+                device management, Jamf Pro, iOS deployment, and more.
+              </p>
+            </div>
+            <button
+              onClick={handleSignOut}
+              style={{
+                position: 'absolute',
+                top: '1rem',
+                right: '1rem',
+                backgroundColor: '#dc2626',
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: '500'
+              }}
+              title="Sign out and return to password screen"
+            >
+              🔓 Sign Out
+            </button>
+          </div>
+        </div>
+
+        <div className="chat-messages">
+          {messages.map((message, index) => renderMessage(message, index))}
+
+          {isLoading && (
+            <div className="message assistant loading">
+              <div className="loading-content">
+                <span>Thinking</span>
+                <div className="loading-dots">
+                  <div className="loading-dot"></div>
+                  <div className="loading-dot"></div>
+                  <div className="loading-dot"></div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {messages.length === 1 && sampleQuestions.length > 0 && (
+          <div className="sample-questions">
+            <h3>Try asking about:</h3>
+            <div className="sample-question-buttons">
+              {sampleQuestions.slice(0, 6).map((question, index) => (
+                <button
+                  key={index}
+                  className="sample-question-button"
+                  onClick={() => handleSampleQuestion(question)}
+                  disabled={isLoading}
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="chat-input-container">
+          <form onSubmit={handleSubmit} className="chat-input-form">
+            <textarea
+              className="chat-input"
+              value={inputText}
+              onChange={e => setInputText(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Ask me about Apple device management..."
+              disabled={isLoading || systemStatus !== 'ready'}
+              rows={1}
+            />
+            <button
+              type="submit"
+              className="send-button"
+              disabled={
+                isLoading || !inputText.trim() || systemStatus !== 'ready'
+              }
+            >
+              ➤
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;

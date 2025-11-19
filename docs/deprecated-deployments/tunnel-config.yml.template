@@ -1,0 +1,10 @@
+tunnel: YOUR_TUNNEL_ID_HERE
+credentials-file: /home/nonroot/.cloudflared/YOUR_TUNNEL_ID_HERE.json
+
+ingress:
+  - hostname: your-domain.example.com
+    service: http://hcs-backend:8000
+    originRequest:
+      httpHostHeader: hcs-backend:8000
+      noTLSVerify: true
+  - service: http_status:404

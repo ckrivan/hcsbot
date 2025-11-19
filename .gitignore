@@ -1,0 +1,35 @@
+# Environment variables
+.env
+
+# Dependencies
+node_modules/
+venv/
+
+# Vector database
+chroma_db/
+
+# Build output
+build/
+
+# Logs
+*.log
+logs/
+
+# PDF documents (too large for git)
+PDFs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Feedback data
+feedback.json

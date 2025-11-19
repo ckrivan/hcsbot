@@ -1,0 +1,38 @@
+{
+  "name": "hcs-apple-bot",
+  "version": "1.0.0",
+  "description": "Apple Technology RAG Chatbot for HCS",
+  "main": "index.js",
+  "homepage": "https://hcsbot.hcsonline.com",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "NODE_OPTIONS='--max-old-space-size=4096' react-scripts build",
+    "build:prod": "NODE_OPTIONS='--max-old-space-size=4096' REACT_APP_API_URL=https://api.hcsonline.com npm run build",
+    "build:liquidweb": "NODE_OPTIONS='--max-old-space-size=4096' REACT_APP_API_URL=https://hcsbot.hcsonline.com/api npm run build",
+    "dev": "concurrently \"npm start\" \"python backend/app.py\"",
+    "backend": "cd backend && python app.py"
+  },
+  "dependencies": {
+    "axios": "^1.5.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^9.0.1",
+    "react-scripts": "5.0.1",
+    "remark-gfm": "^4.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
