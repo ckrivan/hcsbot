@@ -418,8 +418,11 @@ async def submit_feedback(request: FeedbackRequest):
 @app.post("/admin/login")
 async def admin_login(request: AdminLoginRequest):
     """Admin login endpoint"""
-    # Simple hardcoded credentials (in production, use proper auth)
-    if request.username == "hcs" and request.password == "I love P!zz@":
+    # Read credentials from environment variables
+    admin_username = os.getenv('ADMIN_USERNAME', 'hcs')
+    admin_password = os.getenv('ADMIN_PASSWORD', 'default-password')
+
+    if request.username == admin_username and request.password == admin_password:
         return {"success": True, "message": "Login successful"}
     else:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -427,8 +430,12 @@ async def admin_login(request: AdminLoginRequest):
 @app.get("/admin/feedback")
 async def get_feedback(username: str = None, password: str = None):
     """Get all feedback entries (admin only)"""
+    # Read credentials from environment variables
+    admin_username = os.getenv('ADMIN_USERNAME', 'hcs')
+    admin_password = os.getenv('ADMIN_PASSWORD', 'default-password')
+
     # Simple auth check via query params (in production, use proper JWT/sessions)
-    if username != "hcs" or password != "I love P!zz@":
+    if username != admin_username or password != admin_password:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     return {
