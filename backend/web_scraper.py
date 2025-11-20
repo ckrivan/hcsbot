@@ -127,7 +127,7 @@ class HCSWebScraper:
             logger.info(f"Downloading PDF: {pdf_url}")
             time.sleep(self.REQUEST_DELAY)
 
-            response = requests.get(pdf_url, headers={'User-Agent': self.USER_AGENT}, timeout=30)
+            response = requests.get(pdf_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
             response.raise_for_status()
 
             # Extract text from PDF

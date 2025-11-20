@@ -6,6 +6,7 @@ Maps PDF filenames to their actual publication dates for recency-based search pr
 # PDFs with known recent publication dates (2024+)
 RECENT_PDF_DATES = {
     'Jamf_Connect_Entra_2025.pdf': '2025-10-03',
+    'Jamf_Microsoft_Platform_SSO.pdf': '2025-10-03',  # Platform SSO with Intune
     # Add more recent PDFs here as they're published
 }
 
