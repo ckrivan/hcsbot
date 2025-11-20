@@ -45,11 +45,11 @@ class RAGSystem:
         'azure ad': 'Microsoft Entra ID (formerly Azure Active Directory)',
         'entra': 'Microsoft Entra ID',
         'entra id': 'Microsoft Entra ID',
-        'microsoft 365': 'Microsoft 365 (formerly Office 365)',
+        'aad': 'Microsoft Entra ID (formerly Azure Active Directory)',
+        # Note: Microsoft 365 mapping handled contextually in expand_acronyms method
         'm365': 'Microsoft 365',
         'office 365': 'Microsoft 365 (formerly Office 365)',
         'o365': 'Microsoft 365 (formerly Office 365)',
-        'aad': 'Microsoft Entra ID (formerly Azure Active Directory)',
     }
 
     def __init__(self, vector_db):
@@ -66,11 +66,22 @@ class RAGSystem:
 
     def expand_acronyms(self, query: str) -> str:
         """Expand known acronyms in the query"""
-        words = query.lower().split()
+        query_lower = query.lower()
+        words = query_lower.split()
         expanded_words = []
 
         # Product names that should not be expanded (e.g., "Jamf Connect", "Jamf Protect")
         jamf_products = ['connect', 'protect', 'threat', 'school', 'now', 'pro']
+
+        # Special case: Microsoft 365 + Jamf Connect = Entra ID authentication
+        # When both appear in query, add Entra ID context
+        has_m365 = 'microsoft 365' in query_lower or 'office 365' in query_lower or 'm365' in query_lower or 'o365' in query_lower
+        has_jamf_connect = 'jamf connect' in query_lower
+
+        if has_m365 and has_jamf_connect:
+            # User is asking about M365 authentication with Jamf Connect = Entra ID setup
+            logger.info("Detected Microsoft 365 + Jamf Connect query, adding Entra ID context")
+            expanded_words.append("Microsoft Entra ID authentication")
 
         for i, word in enumerate(words):
             # Remove punctuation for matching
@@ -97,9 +108,8 @@ class RAGSystem:
         if not context_docs:
             return False
 
-        # Check if all sources are pre-2024 content
+        # Check if all sources are pre-2024 content based on published_date
         all_old = all(
-            doc.get('source_type') == 'pdf' or
             doc.get('published_date', '').startswith('pre-') or
             doc.get('published_date', '') == 'pre-2024'
             for doc in context_docs
@@ -114,13 +124,13 @@ class RAGSystem:
 
 ---
 
-⚠️ **Important Note:** This answer is based on documentation created prior to 2024. While the core concepts remain valid, there is a chance some details may be outdated or deprecated.
+⚠️ **Important Note:** This information is from 2023 documentation. Some steps and configuration options may have changed since then.
 
-**For the most current information:**
-- Consult the official vendor documentation for the latest features
-- Check Apple's support pages for recent macOS/iOS updates
-- Review Jamf's latest release notes and configuration guides
-- Verify configurations in your specific environment"""
+**For the most current and accurate information:**
+- **Jamf Products:** Visit https://learn.jamf.com for the latest setup guides and release notes
+- **Apple Platforms:** Check https://support.apple.com/guide/deployment/ for current deployment documentation
+- **Microsoft Services:** See https://learn.microsoft.com/entra for Entra ID and Microsoft 365 configuration
+- **Always verify:** Test configurations in a non-production environment first"""
 
             return answer + disclaimer
 
