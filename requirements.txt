@@ -25,3 +25,14 @@ requests==2.31.0
 
 # CORS
 starlette==0.35.1
+
+# Web scraping and content extraction
+beautifulsoup4==4.12.2
+lxml==4.9.3
+html2text==2020.1.16
+
+# Scheduling
+schedule==1.2.0
+
+# numpy downgraded for ChromaDB compatibility
+numpy==1.26.4

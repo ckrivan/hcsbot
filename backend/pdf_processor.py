@@ -167,3 +167,72 @@ class PDFProcessor:
         
         logger.info(f"Created {len(all_chunks)} text chunks from all documents")
         return all_chunks
+
+    def process_web_article(self, article_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Process a web article into searchable chunks
+
+        Args:
+            article_data: Dict with keys: url, title, content, published_date, section
+
+        Returns:
+            List of chunks with metadata
+        """
+        try:
+            url = article_data['url']
+            title = article_data.get('title', 'Untitled')
+            content = article_data.get('content', '')
+            pub_date = article_data.get('published_date', 'Unknown')
+            section = article_data.get('section', 'article')
+
+            # Clean the content
+            content = self._clean_text(content)
+
+            # Create chunks
+            text_chunks = self.chunk_text(content)
+
+            # Build chunk objects with metadata
+            chunks = []
+            for chunk_idx, chunk_text in enumerate(text_chunks):
+                chunk_id = f"web_{section}_{url.split('/')[-1]}_{chunk_idx}"
+
+                chunks.append({
+                    'text': chunk_text,
+                    'filename': title,  # Use title as filename for display
+                    'page_number': None,  # Web articles don't have pages
+                    'chunk_id': chunk_id,
+                    'metadata': {
+                        'source': title,
+                        'source_type': 'web',
+                        'url': url,
+                        'published_date': pub_date,
+                        'section': section,
+                        'chunk_index': chunk_idx
+                    }
+                })
+
+            logger.info(f"Created {len(chunks)} chunks from web article: {title}")
+            return chunks
+
+        except Exception as e:
+            logger.error(f"Error processing web article: {e}")
+            return []
+
+    def process_multiple_web_articles(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Process multiple web articles into searchable chunks
+
+        Args:
+            articles: List of article data dicts
+
+        Returns:
+            List of all chunks from all articles
+        """
+        all_chunks = []
+
+        for article in articles:
+            chunks = self.process_web_article(article)
+            all_chunks.extend(chunks)
+
+        logger.info(f"Processed {len(articles)} web articles into {len(all_chunks)} total chunks")
+        return all_chunks

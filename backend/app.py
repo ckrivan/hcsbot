@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any
 import logging
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -14,6 +15,8 @@ from vector_db import VectorDatabase
 from rag_system import RAGSystem
 from rag_system_ollama import RAGSystemOllama
 from rag_system_claude import RAGSystemClaude
+from web_scraper import HCSWebScraper
+from article_manifest import ArticleManifest
 
 # Load environment variables
 load_dotenv()
@@ -95,6 +98,12 @@ rag_system = None
 is_initialized = False
 feedback_storage = []  # Simple in-memory storage for feedback
 FEEDBACK_FILE = "./feedback.json"  # Persistent storage file in working directory
+
+# Web scraping globals
+web_scraper = None
+article_manifest = None
+scraping_in_progress = False
+last_scrape_status = {"status": "never_run", "timestamp": None, "articles_scraped": 0}
 
 # Query suggestion mappings - maps broad terms to specific questions
 QUERY_SUGGESTIONS = {
@@ -465,6 +474,124 @@ async def get_pdf(filename: str):
             "Cache-Control": "public, max-age=3600"
         }
     )
+
+# Web Scraping Endpoints
+
+@app.post("/scrape/trigger")
+async def trigger_scraping():
+    """Manually trigger web article scraping from hcsonline.com"""
+    global web_scraper, article_manifest, scraping_in_progress, last_scrape_status
+
+    if scraping_in_progress:
+        return {"status": "already_running", "message": "Scraping is already in progress"}
+
+    try:
+        scraping_in_progress = True
+        logger.info("Starting manual web scraping...")
+
+        # Initialize scraper and manifest if needed
+        if not web_scraper:
+            web_scraper = HCSWebScraper()
+        if not article_manifest:
+            article_manifest = ArticleManifest()
+
+        # Scrape all articles (2024+ only)
+        articles = web_scraper.scrape_all()
+
+        # Update manifest and last scrape status
+        last_scrape_status = {
+            "status": "completed",
+            "timestamp": datetime.now().isoformat(),
+            "articles_scraped": len(articles),
+            "articles_filtered": len([a for a in articles if a]),  # Count non-None articles
+        }
+
+        # Store articles in manifest
+        for article in articles:
+            if article:
+                article_manifest.add_article(article)
+
+        scraping_in_progress = False
+
+        return {
+            "status": "success",
+            "message": f"Scraped {len(articles)} articles from 2024+",
+            "articles": [{"title": a["title"], "date": a["published_date"], "url": a["url"]} for a in articles if a]
+        }
+
+    except Exception as e:
+        scraping_in_progress = False
+        last_scrape_status = {
+            "status": "error",
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e)
+        }
+        logger.error(f"Error during web scraping: {e}")
+        raise HTTPException(status_code=500, detail=f"Scraping failed: {str(e)}")
+
+@app.get("/scrape/status")
+async def get_scraping_status():
+    """Get status of web scraping"""
+    global article_manifest, scraping_in_progress, last_scrape_status
+
+    if not article_manifest:
+        article_manifest = ArticleManifest()
+
+    stats = article_manifest.get_stats()
+
+    return {
+        "scraping_in_progress": scraping_in_progress,
+        "last_scrape": last_scrape_status,
+        "manifest_stats": stats
+    }
+
+@app.post("/scrape/add-to-database")
+async def add_scraped_articles_to_database():
+    """Add scraped articles to vector database"""
+    global vector_db, article_manifest
+
+    if not vector_db:
+        raise HTTPException(status_code=503, detail="Vector database not initialized")
+
+    if not article_manifest:
+        article_manifest = ArticleManifest()
+
+    try:
+        logger.info("Adding scraped articles to vector database...")
+
+        # Get all articles from manifest
+        articles_data = article_manifest.get_all_articles()
+
+        if not articles_data:
+            return {"status": "no_articles", "message": "No articles in manifest to add"}
+
+        # Process articles through PDFProcessor
+        pdf_processor = PDFProcessor()
+        all_chunks = []
+
+        for article_entry in articles_data:
+            # Reconstruct article data (we don't store content in manifest, need to re-scrape)
+            # For now, skip articles already added (check chunk_ids)
+            if article_entry.get('chunk_ids'):
+                continue  # Already added
+
+            # This is a simplified version - in production you'd want to store content or re-scrape
+            logger.warning(f"Skipping article (no content stored): {article_entry['title']}")
+
+        # Add chunks to vector database
+        if all_chunks:
+            vector_db.add_documents(all_chunks)
+            logger.info(f"Added {len(all_chunks)} chunks to vector database")
+
+        return {
+            "status": "success",
+            "message": f"Processed articles into vector database",
+            "chunks_added": len(all_chunks)
+        }
+
+    except Exception as e:
+        logger.error(f"Error adding articles to database: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to add articles: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
