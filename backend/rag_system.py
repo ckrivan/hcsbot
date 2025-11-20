@@ -235,17 +235,18 @@ Please provide a helpful answer based on the documentation above. Include the PD
         """Extract source information from retrieved documents"""
         sources = []
         seen_sources = set()
-        
+
         for doc in docs:
             source_key = f"{doc['filename']}_page_{doc['page_number']}"
             if source_key not in seen_sources:
                 sources.append({
                     'filename': doc['filename'],
                     'page_number': doc['page_number'],
-                    'similarity_score': doc.get('similarity_score', 0)
+                    'similarity_score': doc.get('similarity_score', 0),
+                    'published_date': doc.get('published_date', 'pre-2024')
                 })
                 seen_sources.add(source_key)
-        
+
         return sources
     
     def ask_question(self, question: str, n_results: int = 5) -> Dict[str, Any]:
