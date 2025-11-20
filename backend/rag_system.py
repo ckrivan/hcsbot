@@ -110,12 +110,23 @@ class RAGSystem:
 
         # Check if all sources are pre-2024 content based on published_date
         all_old = all(
-            doc.get('published_date', '').startswith('pre-') or
-            doc.get('published_date', '') == 'pre-2024'
+            self._is_pre_2024(doc.get('published_date', 'pre-2024'))
             for doc in context_docs
         )
 
         return all_old
+
+    def _is_pre_2024(self, date_str: str) -> bool:
+        """Check if a date string represents content from before 2024"""
+        if not date_str or date_str == 'pre-2024' or date_str.startswith('pre-'):
+            return True
+
+        try:
+            # Parse year from ISO date format (YYYY-MM-DD)
+            year = int(date_str.split('-')[0])
+            return year < 2024
+        except:
+            return True  # Default to old if can't parse
 
     def _add_recency_disclaimer(self, answer: str, context_docs: List[Dict[str, Any]]) -> str:
         """Add disclaimer if answer is based on old (pre-2024) sources"""
