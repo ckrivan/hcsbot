@@ -4,6 +4,7 @@ import pdfplumber
 from typing import List, Dict, Any
 import logging
 from pdf_manifest import ExternalPDFManager
+from pdf_dates import get_pdf_date
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -153,6 +154,9 @@ class PDFProcessor:
                 chunks = self.chunk_text(text)
                 
                 for chunk_idx, chunk in enumerate(chunks):
+                    # Get actual publication date for this PDF
+                    pub_date = get_pdf_date(filename)
+
                     all_chunks.append({
                         'text': chunk,
                         'filename': filename,
@@ -161,7 +165,7 @@ class PDFProcessor:
                         'metadata': {
                             'source': filename,
                             'source_type': 'pdf',
-                            'published_date': 'pre-2024',  # Mark PDFs as older content
+                            'published_date': pub_date,  # Use actual publication date
                             'page': page_num,
                             'chunk_index': chunk_idx
                         }

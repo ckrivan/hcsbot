@@ -270,12 +270,21 @@ Please provide a helpful answer based on the documentation above. Include the PD
             relevant_docs = self.vector_db.search_similar(question, n_results=n_results)
             search_time = time.time() - search_start
 
-            # Sort by recency: prioritize web articles (2024+) over PDFs (pre-2024)
+            # Sort by recency: prioritize recent content (2024+) over old content (pre-2024)
             # Within each group, maintain similarity score order
             def sort_by_recency(doc):
-                # Web articles get priority (0), PDFs get lower priority (1)
-                source_type = doc.get('source_type', 'pdf')
-                is_recent = 0 if source_type == 'web' else 1
+                pub_date = doc.get('published_date', 'pre-2024')
+
+                # Recent content (2024+) gets priority 0, old content gets priority 1
+                if pub_date == 'pre-2024':
+                    is_recent = 1  # Old content
+                else:
+                    try:
+                        year = int(pub_date.split('-')[0])
+                        is_recent = 0 if year >= 2024 else 1
+                    except:
+                        is_recent = 1  # Default to old if can't parse
+
                 # Negate similarity to sort high scores first within each group
                 similarity = -doc.get('similarity_score', 0)
                 return (is_recent, similarity)

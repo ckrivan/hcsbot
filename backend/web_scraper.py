@@ -11,6 +11,8 @@ from typing import List, Dict, Any, Optional
 import logging
 import time
 import re
+import pdfplumber
+from io import BytesIO
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -79,6 +81,84 @@ class HCSWebScraper:
             return False  # Skip if no date
 
         return pub_date.year >= self.CUTOFF_YEAR
+
+    def _extract_pdf_article(self, page_url: str, pdf_url: str, soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
+        """
+        Extract content from a PDF-only white paper page
+
+        Args:
+            page_url: URL of the HTML page
+            pdf_url: URL of the PDF file
+            soup: BeautifulSoup object of the HTML page
+
+        Returns:
+            Article data dict or None
+        """
+        try:
+            # Extract title from HTML page
+            title_tag = soup.find('h1') or soup.find('title')
+            title = title_tag.get_text().strip() if title_tag else "Untitled"
+
+            # Extract publication date from HTML page
+            pub_date = None
+            date_patterns = [
+                soup.find(string=re.compile(r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}')),
+                soup.find('time'),
+                soup.find(class_=re.compile('date|published|time', re.I))
+            ]
+
+            for pattern in date_patterns:
+                if pattern:
+                    if hasattr(pattern, 'get_text'):
+                        pub_date_str = pattern.get_text().strip()
+                    else:
+                        pub_date_str = str(pattern).strip()
+
+                    pub_date = self._parse_date(pub_date_str)
+                    if pub_date:
+                        break
+
+            # Check date filter
+            if not self._should_include_article(pub_date):
+                logger.info(f"Skipping PDF (date filter): {title}")
+                return None
+
+            # Download PDF
+            logger.info(f"Downloading PDF: {pdf_url}")
+            time.sleep(self.REQUEST_DELAY)
+
+            response = requests.get(pdf_url, headers={'User-Agent': self.USER_AGENT}, timeout=30)
+            response.raise_for_status()
+
+            # Extract text from PDF
+            pdf_content = []
+            with pdfplumber.open(BytesIO(response.content)) as pdf:
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        pdf_content.append(text)
+
+            content = '\n\n'.join(pdf_content)
+
+            # Determine section
+            section = "blog" if "/blog/" in page_url else "white-paper"
+
+            article_data = {
+                'url': page_url,
+                'title': title,
+                'content': content,
+                'published_date': pub_date.strftime('%Y-%m-%d') if pub_date else None,
+                'section': section,
+                'scraped_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'pdf_url': pdf_url
+            }
+
+            logger.info(f"Extracted PDF article: {title} ({len(content)} chars)")
+            return article_data
+
+        except Exception as e:
+            logger.error(f"Error extracting PDF article: {e}")
+            return None
 
     def _extract_article_links_from_page(self, soup: BeautifulSoup, base_path: str) -> List[str]:
         """Extract article URLs from listing page"""
@@ -162,6 +242,7 @@ class HCSWebScraper:
     def extract_article(self, url: str) -> Optional[Dict[str, Any]]:
         """
         Extract article content and metadata
+        Handles both HTML articles and PDF-only pages
 
         Returns:
             Dict with keys: url, title, content, published_date, section
@@ -171,6 +252,16 @@ class HCSWebScraper:
             return None
 
         try:
+            # Check if this page contains a PDF download link
+            pdf_link = soup.find('a', href=re.compile(r'\.pdf$', re.I))
+            if pdf_link:
+                pdf_url = pdf_link['href']
+                if not pdf_url.startswith('http'):
+                    pdf_url = self.BASE_URL + pdf_url
+
+                logger.info(f"Found PDF link: {pdf_url}")
+                return self._extract_pdf_article(url, pdf_url, soup)
+
             # Extract title
             title_tag = soup.find('h1') or soup.find('title')
             title = title_tag.get_text().strip() if title_tag else "Untitled"
