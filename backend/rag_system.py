@@ -40,6 +40,16 @@ class RAGSystem:
         'ios': 'iOS operating system',
         'ipados': 'iPadOS operating system',
         'tvos': 'tvOS operating system',
+        # Microsoft / Azure terminology (old and new)
+        'azure': 'Microsoft Entra ID (formerly Azure Active Directory)',
+        'azure ad': 'Microsoft Entra ID (formerly Azure Active Directory)',
+        'entra': 'Microsoft Entra ID',
+        'entra id': 'Microsoft Entra ID',
+        'microsoft 365': 'Microsoft 365 (formerly Office 365)',
+        'm365': 'Microsoft 365',
+        'office 365': 'Microsoft 365 (formerly Office 365)',
+        'o365': 'Microsoft 365 (formerly Office 365)',
+        'aad': 'Microsoft Entra ID (formerly Azure Active Directory)',
     }
 
     def __init__(self, vector_db):

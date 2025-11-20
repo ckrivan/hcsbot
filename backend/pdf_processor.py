@@ -199,7 +199,7 @@ class PDFProcessor:
                 chunks.append({
                     'text': chunk_text,
                     'filename': title,  # Use title as filename for display
-                    'page_number': None,  # Web articles don't have pages
+                    'page_number': 0,  # Web articles use 0 instead of None
                     'chunk_id': chunk_id,
                     'metadata': {
                         'source': title,

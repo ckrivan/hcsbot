@@ -82,16 +82,18 @@ class ArticleManifest:
 
         return existing.get('content_hash') != current_hash
 
-    def add_article(self, article_data: Dict[str, Any], chunk_ids: List[str] = None):
+    def add_article(self, article_data: Dict[str, Any], chunk_ids: List[str] = None, store_content: bool = True):
         """
         Add or update article in manifest
 
         Args:
             article_data: Dict with keys: url, title, content, published_date, section
             chunk_ids: List of ChromaDB chunk IDs for this article
+            store_content: Whether to store full content in manifest (default: True)
         """
         url = article_data['url']
-        content_hash = self._compute_content_hash(article_data['content'])
+        content = article_data.get('content', '')
+        content_hash = self._compute_content_hash(content)
 
         entry = {
             'url': url,
@@ -99,11 +101,15 @@ class ArticleManifest:
             'published_date': article_data.get('published_date'),
             'section': article_data.get('section', 'blog'),
             'content_hash': content_hash,
-            'content_length': len(article_data['content']),
+            'content_length': len(content),
             'scraped_date': article_data.get('scraped_date', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
             'last_updated': datetime.now().isoformat(),
             'chunk_ids': chunk_ids or []
         }
+
+        # Store content if requested (for processing into vector DB)
+        if store_content and content:
+            entry['content'] = content
 
         self.manifest['articles'][url] = entry
         self._save_manifest()

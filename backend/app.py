@@ -568,29 +568,63 @@ async def add_scraped_articles_to_database():
         # Process articles through PDFProcessor
         pdf_processor = PDFProcessor()
         all_chunks = []
+        articles_processed = 0
 
         for article_entry in articles_data:
-            # Reconstruct article data (we don't store content in manifest, need to re-scrape)
-            # For now, skip articles already added (check chunk_ids)
+            # Skip articles already added to database
             if article_entry.get('chunk_ids'):
-                continue  # Already added
+                logger.info(f"Skipping already processed article: {article_entry['title']}")
+                continue
 
-            # This is a simplified version - in production you'd want to store content or re-scrape
-            logger.warning(f"Skipping article (no content stored): {article_entry['title']}")
+            # Check if content is stored
+            if not article_entry.get('content'):
+                logger.warning(f"Skipping article (no content stored): {article_entry['title']}")
+                continue
+
+            # Create article data dict for processing
+            article_data = {
+                'url': article_entry['url'],
+                'title': article_entry['title'],
+                'content': article_entry['content'],
+                'published_date': article_entry.get('published_date'),
+                'section': article_entry.get('section', 'blog')
+            }
+
+            # Process article into chunks
+            chunks = pdf_processor.process_web_article(article_data)
+
+            if chunks:
+                all_chunks.extend(chunks)
+                articles_processed += 1
+
+                # Update manifest with chunk IDs
+                chunk_ids = [chunk['chunk_id'] for chunk in chunks]
+                article_manifest.add_article(article_data, chunk_ids=chunk_ids, store_content=True)
+
+                logger.info(f"Processed article: {article_entry['title']} ({len(chunks)} chunks)")
 
         # Add chunks to vector database
         if all_chunks:
+            # Chunks are already in the correct format for add_documents()
             vector_db.add_documents(all_chunks)
             logger.info(f"Added {len(all_chunks)} chunks to vector database")
 
-        return {
-            "status": "success",
-            "message": f"Processed articles into vector database",
-            "chunks_added": len(all_chunks)
-        }
+            return {
+                "status": "success",
+                "message": f"Processed {articles_processed} articles into vector database",
+                "articles_processed": articles_processed,
+                "chunks_added": len(all_chunks)
+            }
+        else:
+            return {
+                "status": "no_new_articles",
+                "message": "No new articles to process (all already in database)"
+            }
 
     except Exception as e:
         logger.error(f"Error adding articles to database: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to add articles: {str(e)}")
 
 if __name__ == "__main__":
