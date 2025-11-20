@@ -55,7 +55,9 @@ class VectorDatabase:
                 metadata = {
                     'filename': chunk['filename'],
                     'page_number': str(chunk['page_number']),
-                    'chunk_index': str(chunk['metadata']['chunk_index'])
+                    'chunk_index': str(chunk['metadata']['chunk_index']),
+                    'source_type': chunk['metadata'].get('source_type', 'pdf'),
+                    'published_date': chunk['metadata'].get('published_date', 'pre-2024')
                 }
                 metadatas.append(metadata)
             
@@ -105,7 +107,9 @@ class VectorDatabase:
                         'filename': results['metadatas'][0][i]['filename'],
                         'page_number': int(results['metadatas'][0][i]['page_number']),
                         'chunk_index': int(results['metadatas'][0][i]['chunk_index']),
-                        'similarity_score': 1 - results['distances'][0][i]  # Convert distance to similarity
+                        'similarity_score': 1 - results['distances'][0][i],  # Convert distance to similarity
+                        'source_type': results['metadatas'][0][i].get('source_type', 'pdf'),
+                        'published_date': results['metadatas'][0][i].get('published_date', 'pre-2024')
                     })
             
             logger.info(f"Found {len(formatted_results)} similar documents for query")
@@ -132,7 +136,9 @@ class VectorDatabase:
                             'filename': results['metadatas'][0][i]['filename'],
                             'page_number': int(results['metadatas'][0][i]['page_number']),
                             'chunk_index': int(results['metadatas'][0][i]['chunk_index']),
-                            'similarity_score': 1 - results['distances'][0][i]
+                            'similarity_score': 1 - results['distances'][0][i],
+                            'source_type': results['metadatas'][0][i].get('source_type', 'pdf'),
+                            'published_date': results['metadatas'][0][i].get('published_date', 'pre-2024')
                         })
                 
                 logger.info(f"Retry successful: Found {len(formatted_results)} similar documents")

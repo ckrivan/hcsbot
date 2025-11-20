@@ -69,9 +69,21 @@ class RAGSystem:
         words = query.lower().split()
         expanded_words = []
 
-        for word in words:
+        # Product names that should not be expanded (e.g., "Jamf Connect", "Jamf Protect")
+        jamf_products = ['connect', 'protect', 'threat', 'school', 'now', 'pro']
+
+        for i, word in enumerate(words):
             # Remove punctuation for matching
             clean_word = word.strip('.,?!')
+
+            # Special handling for "jamf" - don't expand if followed by a product name
+            if clean_word == 'jamf' and i + 1 < len(words):
+                next_word = words[i + 1].strip('.,?!')
+                if next_word in jamf_products:
+                    # Keep "jamf" as-is when part of product name
+                    expanded_words.append(word)
+                    continue
+
             if clean_word in self.ACRONYM_MAP:
                 expanded_words.append(self.ACRONYM_MAP[clean_word])
                 logger.info(f"Expanded acronym: {clean_word} -> {self.ACRONYM_MAP[clean_word]}")
@@ -80,47 +92,35 @@ class RAGSystem:
 
         return ' '.join(expanded_words)
 
-    def _check_recent_version_query(self, query: str) -> bool:
-        """Detect if query mentions versions/dates after 2023"""
-        import re
-        query_lower = query.lower()
+    def _check_sources_are_old(self, context_docs: List[Dict[str, Any]]) -> bool:
+        """Check if all source documents are from before 2024"""
+        if not context_docs:
+            return False
 
-        # Check for years 2024 and later
-        year_pattern = r'\b(202[4-9]|20[3-9]\d)\b'
-        if re.search(year_pattern, query):
-            return True
+        # Check if all sources are pre-2024 content
+        all_old = all(
+            doc.get('source_type') == 'pdf' or
+            doc.get('published_date', '').startswith('pre-') or
+            doc.get('published_date', '') == 'pre-2024'
+            for doc in context_docs
+        )
 
-        # Check for recent macOS versions (Sonoma is 2023, Sequoia is 2024+)
-        recent_macos = ['sequoia', 'macos 15']
-        if any(version in query_lower for version in recent_macos):
-            return True
+        return all_old
 
-        # Check for recent iOS versions (iOS 17 is 2023, iOS 18 is 2024+)
-        recent_ios = ['ios 18', 'ios 19', 'ipados 18', 'ipados 19']
-        if any(version in query_lower for version in recent_ios):
-            return True
-
-        # Check for recent Jamf Pro versions (11.x is 2023+)
-        jamf_version_pattern = r'jamf\s+pro\s+(11\.[5-9]|1[2-9]\.\d)'
-        if re.search(jamf_version_pattern, query_lower):
-            return True
-
-        return False
-
-    def _add_recency_disclaimer(self, answer: str, query: str) -> str:
-        """Add disclaimer for queries about recent versions"""
-        if self._check_recent_version_query(query):
+    def _add_recency_disclaimer(self, answer: str, context_docs: List[Dict[str, Any]]) -> str:
+        """Add disclaimer if answer is based on old (pre-2024) sources"""
+        if self._check_sources_are_old(context_docs):
             disclaimer = """
 
 ---
 
-⚠️ **Important Note:** Our documentation was created prior to 2024. If you're asking about recent software versions, features, or configurations released after 2023, the information above may not reflect the latest changes.
+⚠️ **Important Note:** This answer is based on documentation created prior to 2024. While the core concepts remain valid, there is a chance some details may be outdated or deprecated.
 
-**We recommend:**
-- Consult the official vendor documentation for the most current information
-- Check Apple's official support pages for macOS/iOS updates
-- Review Jamf's release notes for the latest feature changes
-- Contact the vendor directly for the newest configuration guidance"""
+**For the most current information:**
+- Consult the official vendor documentation for the latest features
+- Check Apple's support pages for recent macOS/iOS updates
+- Review Jamf's latest release notes and configuration guides
+- Verify configurations in your specific environment"""
 
             return answer + disclaimer
 
@@ -168,20 +168,29 @@ Please provide a helpful answer based on the documentation above. Include the PD
 
             # Call OpenAI API
             model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
-            response = self.openai_client.chat.completions.create(
-                model=model,
-                messages=[
+
+            # GPT-5 models use max_completion_tokens instead of max_tokens
+            api_params = {
+                "model": model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                max_tokens=600,  # Reduced from 1000 to improve response time
-                temperature=0.1
-            )
+                "temperature": 0.1
+            }
+
+            # Use appropriate token parameter based on model
+            if model.startswith('gpt-5'):
+                api_params["max_completion_tokens"] = 600
+            else:
+                api_params["max_tokens"] = 600
+
+            response = self.openai_client.chat.completions.create(**api_params)
             
             answer = response.choices[0].message.content
 
-            # Add recency disclaimer if query mentions recent versions/dates
-            answer = self._add_recency_disclaimer(answer, query)
+            # Add recency disclaimer if sources are from pre-2024 content
+            answer = self._add_recency_disclaimer(answer, context_docs)
 
             return {
                 'answer': answer,
@@ -260,6 +269,18 @@ Please provide a helpful answer based on the documentation above. Include the PD
             search_start = time.time()
             relevant_docs = self.vector_db.search_similar(question, n_results=n_results)
             search_time = time.time() - search_start
+
+            # Sort by recency: prioritize web articles (2024+) over PDFs (pre-2024)
+            # Within each group, maintain similarity score order
+            def sort_by_recency(doc):
+                # Web articles get priority (0), PDFs get lower priority (1)
+                source_type = doc.get('source_type', 'pdf')
+                is_recent = 0 if source_type == 'web' else 1
+                # Negate similarity to sort high scores first within each group
+                similarity = -doc.get('similarity_score', 0)
+                return (is_recent, similarity)
+
+            relevant_docs = sorted(relevant_docs, key=sort_by_recency)
 
             # Log similarity scores for debugging
             logger.info(f"Retrieved {len(relevant_docs)} docs in {search_time:.2f}s. Similarity scores: {[doc.get('similarity_score', 0) for doc in relevant_docs]}")

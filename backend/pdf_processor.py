@@ -160,6 +160,8 @@ class PDFProcessor:
                         'chunk_id': f"{filename}_page{page_num}_chunk{chunk_idx}",
                         'metadata': {
                             'source': filename,
+                            'source_type': 'pdf',
+                            'published_date': 'pre-2024',  # Mark PDFs as older content
                             'page': page_num,
                             'chunk_index': chunk_idx
                         }
