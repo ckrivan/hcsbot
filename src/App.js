@@ -91,7 +91,7 @@ function App() {
         {
           type: 'assistant',
           content:
-            "Hello! I'm your HCS Apple Technology Assistant. I can help you with questions about Apple device management, Jamf Pro, iOS deployment, and more based on our comprehensive documentation.",
+            "Hello! I'm CoreBot, your HCS Technology Group assistant. I can help you with questions about Apple device management, Jamf Pro, iOS deployment, and more based on our comprehensive documentation.",
           sources: [],
           timestamp: Date.now(),
         },
@@ -599,7 +599,7 @@ function App() {
                 fontSize: '2rem',
                 fontWeight: '600'
               }}>
-                HCS Apple Technology Assistant
+                HCS Technology Group - CoreBot
               </h1>
               <p style={{ 
                 color: '#6b7280', 
@@ -880,7 +880,7 @@ function App() {
           <div className="header-content">
             <img src="/hcs-logo.png" alt="HCS Logo" className="hcs-logo" />
             <div className="header-text">
-              <h1>HCS Apple Technology Assistant</h1>
+              <h1>HCS Technology Group - CoreBot</h1>
               <p>
                 Technical professionals. Trusted advisors. Ask me about Apple
                 device management, Jamf Pro, iOS deployment, and more.
