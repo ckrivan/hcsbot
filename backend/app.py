@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
-app = FastAPI(title="HCS Technology Group - CoreBot", version="1.0.0")
+app = FastAPI(title="HCS Technology Group - Corby", version="1.0.0")
 
 # Custom middleware for iOS Safari compatibility
 class MobileCompatibilityMiddleware(BaseHTTPMiddleware):
@@ -276,7 +276,7 @@ async def startup_event():
 
 @app.get("/")
 async def root():
-    return {"message": "HCS Technology Group - CoreBot API", "status": "running"}
+    return {"message": "HCS Technology Group - Corby API", "status": "running"}
 
 @app.get("/health")
 async def health_check():
@@ -645,5 +645,5 @@ if __name__ == "__main__":
             logger.warning("OPENAI_API_KEY not found in environment variables")
             print("Please set your OPENAI_API_KEY in a .env file")
     
-    logger.info("Starting HCS Technology Group - CoreBot API...")
+    logger.info("Starting HCS Technology Group - Corby API...")
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
