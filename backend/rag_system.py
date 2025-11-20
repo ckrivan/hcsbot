@@ -128,9 +128,32 @@ class RAGSystem:
         except:
             return True  # Default to old if can't parse
 
-    def _add_recency_disclaimer(self, answer: str, context_docs: List[Dict[str, Any]]) -> str:
+    def _add_recency_disclaimer(self, answer: str, context_docs: List[Dict[str, Any]], query: str = "") -> str:
         """Add disclaimer if answer is based on old (pre-2024) sources"""
         if self._check_sources_are_old(context_docs):
+            # Detect which vendor/service is being asked about
+            query_lower = query.lower()
+
+            # Build context-aware vendor links
+            vendor_links = []
+
+            # Always include Jamf and Apple
+            vendor_links.append("- **Jamf Products:** Visit https://learn.jamf.com for the latest setup guides and release notes")
+            vendor_links.append("- **Apple Platforms:** Check https://support.apple.com/guide/deployment/ for current deployment documentation")
+
+            # Add service-specific links based on query context
+            if 'okta' in query_lower:
+                vendor_links.append("- **Okta:** See https://help.okta.com for current Okta integration documentation")
+            elif 'google' in query_lower or 'gsuite' in query_lower or 'workspace' in query_lower:
+                vendor_links.append("- **Google Workspace:** Visit https://support.google.com/a for Google Workspace configuration")
+            elif 'microsoft' in query_lower or 'entra' in query_lower or 'azure' in query_lower or 'office 365' in query_lower or 'm365' in query_lower or 'o365' in query_lower:
+                vendor_links.append("- **Microsoft Services:** See https://learn.microsoft.com/entra for Entra ID and Microsoft 365 configuration")
+            elif 'zoom' in query_lower:
+                vendor_links.append("- **Zoom:** Visit https://support.zoom.us for the latest Zoom deployment guides")
+
+            # Always add verification reminder
+            vendor_links.append("- **Always verify:** Test configurations in a non-production environment first")
+
             disclaimer = """
 
 ---
@@ -138,10 +161,7 @@ class RAGSystem:
 ⚠️ **Important Note:** This information is from 2023 documentation. Some steps and configuration options may have changed since then.
 
 **For the most current and accurate information:**
-- **Jamf Products:** Visit https://learn.jamf.com for the latest setup guides and release notes
-- **Apple Platforms:** Check https://support.apple.com/guide/deployment/ for current deployment documentation
-- **Microsoft Services:** See https://learn.microsoft.com/entra for Entra ID and Microsoft 365 configuration
-- **Always verify:** Test configurations in a non-production environment first"""
+""" + "\n".join(vendor_links)
 
             return answer + disclaimer
 
@@ -211,7 +231,7 @@ Please provide a helpful answer based on the documentation above. Include the PD
             answer = response.choices[0].message.content
 
             # Add recency disclaimer if sources are from pre-2024 content
-            answer = self._add_recency_disclaimer(answer, context_docs)
+            answer = self._add_recency_disclaimer(answer, context_docs, query)
 
             return {
                 'answer': answer,
