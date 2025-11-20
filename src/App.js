@@ -5,11 +5,14 @@ import remarkGfm from 'remark-gfm';
 import './index.css';
 
 // Use relative API routes for Vercel deployment
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
+const API_BASE_URL = process.env.NODE_ENV === 'production'
   ? '/api'
   : (process.env.REACT_APP_API_URL || 'http://localhost:8000');
 
 const DEBUG_MODE = process.env.NODE_ENV === 'development' || window.location.search.includes('debug=true');
+
+// Cache busting version for static assets
+const ASSET_VERSION = '2.0.20251120';
 
 // Debug logging
 console.log('Environment Info:', {
@@ -24,6 +27,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [systemStatus, setSystemStatus] = useState('initializing');
   const [sampleQuestions, setSampleQuestions] = useState([]);
+  const [showSampleQuestions, setShowSampleQuestions] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [adminLoggedIn, setAdminLoggedIn] = useState(false);
   const [feedbackData, setFeedbackData] = useState([]);
@@ -66,11 +70,26 @@ function App() {
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Use setTimeout to ensure DOM has updated before scrolling
+    setTimeout(() => {
+      if (messagesEndRef.current) {
+        // Use instant scroll on mobile for better reliability
+        const isMobile = window.innerWidth <= 768;
+        messagesEndRef.current.scrollIntoView({
+          behavior: isMobile ? 'auto' : 'smooth',
+          block: 'end',
+          inline: 'nearest'
+        });
+      }
+    }, 100);
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Only auto-scroll if there's more than just the welcome message
+    // This prevents scrolling past the welcome message on mobile
+    if (messages.length > 1) {
+      scrollToBottom();
+    }
   }, [messages]);
 
   // Check for existing authentication session
@@ -86,16 +105,21 @@ function App() {
       checkSystemHealth();
       fetchSampleQuestions();
 
-      // Initial welcome message
-      setMessages([
-        {
-          type: 'assistant',
-          content:
-            "Hello! I'm Corby, your HCS Technology Group assistant. I can help you with questions about Apple device management, Jamf Pro, iOS deployment, and more based on our comprehensive documentation.",
-          sources: [],
-          timestamp: Date.now(),
-        },
-      ]);
+      // Initial welcome message - only set if messages array is empty
+      setMessages(prevMessages => {
+        if (prevMessages.length === 0) {
+          return [
+            {
+              type: 'assistant',
+              content:
+                "Hello! I'm Corby, your HCS Technology Group assistant. I can help you with questions about Apple device management, Jamf Pro, iOS deployment, and more based on our comprehensive documentation.",
+              sources: [],
+              timestamp: Date.now(),
+            },
+          ];
+        }
+        return prevMessages;
+      });
     }
   }, [isAuthenticated]);
 
@@ -361,9 +385,9 @@ function App() {
             h1: ({node, ...props}) => <h1 style={{color: '#1f2937', marginBottom: '0.5rem'}} {...props} />,
             h2: ({node, ...props}) => <h2 style={{color: '#374151', marginBottom: '0.5rem', borderBottom: '2px solid #e5e7eb', paddingBottom: '0.25rem'}} {...props} />,
             h3: ({node, ...props}) => <h3 style={{color: '#4b5563', marginBottom: '0.5rem'}} {...props} />,
-            code: ({node, inline, ...props}) => 
+            code: ({node, inline, ...props}) =>
               inline ? (
-                <code style={{backgroundColor: '#f3f4f6', padding: '0.125rem 0.25rem', borderRadius: '0.25rem', fontSize: '0.875rem'}} {...props} />
+                <code style={{backgroundColor: '#f3f4f6', padding: '0.125rem 0.25rem', borderRadius: '0.25rem', fontSize: '0.875rem', whiteSpace: 'nowrap', display: 'inline', wordBreak: 'keep-all'}} {...props} />
               ) : (
                 <pre style={{backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'auto'}}>
                   <code {...props} />
@@ -588,7 +612,7 @@ function App() {
             textAlign: 'center'
           }}>
             <div style={{ marginBottom: '2rem' }}>
-              <img src="/hcs-logo.png" alt="HCS Logo" style={{
+              <img src={`/hcs-logo.png?v=${ASSET_VERSION}`} alt="HCS Logo" style={{
                 height: '100px',
                 marginBottom: '1rem',
                 filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
@@ -878,7 +902,7 @@ function App() {
       <div className="chat-container">
         <div className="chat-header">
           <div className="header-content">
-            <img src="/hcs-logo.png" alt="HCS Logo" className="hcs-logo" />
+            <img src={`/hcs-logo.png?v=${ASSET_VERSION}`} alt="HCS Logo" className="hcs-logo" />
             <div className="header-text">
               <h1>HCS Technology Group - Corby</h1>
               <p>
@@ -928,20 +952,30 @@ function App() {
         </div>
 
         {messages.length === 1 && sampleQuestions.length > 0 && (
-          <div className="sample-questions">
-            <h3>Try asking about:</h3>
-            <div className="sample-question-buttons">
-              {sampleQuestions.slice(0, 6).map((question, index) => (
-                <button
-                  key={index}
-                  className="sample-question-button"
-                  onClick={() => handleSampleQuestion(question)}
-                  disabled={isLoading}
-                >
-                  {question}
-                </button>
-              ))}
-            </div>
+          <div className="sample-questions-mobile">
+            <button
+              className="sample-questions-toggle"
+              onClick={() => setShowSampleQuestions(!showSampleQuestions)}
+            >
+              {showSampleQuestions ? '▼' : '▲'} Try asking about...
+            </button>
+            {showSampleQuestions && (
+              <div className="sample-question-buttons">
+                {sampleQuestions.slice(0, 6).map((question, index) => (
+                  <button
+                    key={index}
+                    className="sample-question-button"
+                    onClick={() => {
+                      handleSampleQuestion(question);
+                      setShowSampleQuestions(false);
+                    }}
+                    disabled={isLoading}
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

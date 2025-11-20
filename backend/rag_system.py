@@ -187,13 +187,14 @@ class RAGSystem:
             - Use clear numbered lists (1. 2. 3.) for step-by-step instructions
             - Use bullet points (•) for feature lists or options
             - Use bold text for **important terms and concepts**
-            - Use `code formatting` for technical terms, commands, and UI elements
+            - Use `code formatting` for technical terms, commands, and UI elements (keep inline code with surrounding text on same line)
             - Structure your response with clear headings (## Main Topics, ### Subtopics)
             - Add visual separators and spacing between sections
             - Use emojis sparingly for visual appeal (⚠️ for warnings, ✅ for success, 📝 for notes)
             - Create clear visual hierarchy with consistent formatting
             - Keep paragraphs short and scannable
             - Use line breaks generously to create white space
+            - IMPORTANT: Keep inline code elements on the same line as surrounding text (e.g., "Go to `System Settings`." not "Go to\n`System Settings`\n.")
             
             Use the provided PDF documentation to answer questions accurately. Always cite your sources with the PDF filename and page number.
             If you can't find the answer in the provided context, state this clearly and directly.
@@ -493,14 +494,52 @@ Please provide a helpful answer based on the documentation above. Include the PD
         return match_ratio >= 0.5  # At least 50% of key words should match
     
     def get_sample_questions(self) -> List[str]:
-        """Return sample questions for demo purposes"""
-        return [
-            "How do I deploy Zoom using Jamf Pro?",
-            "What are the requirements for iOS 18 device management?",
-            "How do I set up Apple Configurator 2 blueprints?",
+        """Return sample questions that rotate daily"""
+        import datetime
+        import random
+
+        # All available sample questions organized by category
+        all_questions = [
+            # Jamf Connect & SSO
+            "How do I configure Jamf Connect with Microsoft Entra ID?",
+            "How do I set up Platform SSO with Jamf Pro?",
+            "How do I configure Jamf Connect with Okta?",
+            "How do I configure Jamf Connect with Google Workspace?",
+
+            # Device Enrollment & ABM
             "What is the process for enrolling devices in Apple Business Manager?",
-            "How do I configure Microsoft 365 with Jamf Connect?",
-            "What are the steps for setting up Bootstrap Token?",
+            "How do I set up automated device enrollment?",
             "How do I manage Apple TV devices through ABM?",
-            "What is the process for macOS Sonoma deployment?"
+            "How do I configure SCIM with ABM and Entra ID?",
+
+            # Application Deployment
+            "How do I deploy Zoom using Jamf Pro?",
+            "How do I deploy Microsoft 365 apps?",
+            "What are the PPPC requirements for Zoom?",
+
+            # macOS Management
+            "What are the requirements for iOS 18 device management?",
+            "What is the process for macOS Sonoma deployment?",
+            "How do I set up Apple Configurator 2 blueprints?",
+            "How do I set up Bootstrap Token?",
+
+            # Security & FileVault
+            "How do I enforce FileVault encryption?",
+            "How do I escrow FileVault keys with Jamf Pro?",
+            "How do I set up Escrow Buddy?",
+
+            # iOS & Mobile Management
+            "What are the best practices for iOS app deployment?",
+            "How do I manage iOS devices with Jamf Pro?",
+            "How do I configure supervised mode for iOS devices?"
         ]
+
+        # Use date as seed for consistent daily rotation
+        today = datetime.date.today()
+        day_seed = int(today.strftime("%Y%m%d"))
+
+        # Create deterministic random selection based on day
+        random.seed(day_seed)
+        selected = random.sample(all_questions, min(10, len(all_questions)))
+
+        return selected

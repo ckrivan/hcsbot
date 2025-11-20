@@ -296,18 +296,98 @@ code {
   }
   
   .chat-container {
-    height: 90vh;
+    height: 88vh;
+    max-height: -webkit-fill-available;
   }
-  
+
+  .chat-header {
+    padding: 16px;
+  }
+
+  .chat-header h1 {
+    font-size: 18px;
+  }
+
+  .chat-header p {
+    display: none;
+  }
+
+  .header-content {
+    gap: 12px;
+  }
+
+  .hcs-logo {
+    height: 70px;
+    width: 70px;
+  }
+
   .message {
     max-width: 90%;
+    margin-bottom: 16px;
   }
-  
+
+  .chat-messages {
+    padding: 20px;
+    gap: 16px;
+  }
+
+  .sample-questions-mobile {
+    background: #ffffff;
+    border-top: 1px solid #e5e9f2;
+    padding: 0;
+  }
+
+  .sample-questions-toggle {
+    width: 100%;
+    padding: 14px 20px;
+    background: #f0f4fb;
+    border: none;
+    color: #001B4C;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .sample-questions-toggle:active {
+    background: #e5e9f2;
+  }
+
+  .sample-questions-mobile .sample-question-buttons {
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .sample-questions-mobile .sample-question-button {
+    padding: 10px 14px !important;
+    font-size: 13px !important;
+    text-align: left !important;
+  }
+
   .sample-question-buttons {
     flex-direction: column;
   }
-  
+
   .sample-question-button {
     text-align: left;
+  }
+
+  .chat-input-container {
+    padding: 16px;
+  }
+
+  .chat-input {
+    font-size: 16px !important;
+    min-height: 44px;
+  }
+
+  .send-button {
+    width: 44px;
+    height: 44px;
   }
 }
