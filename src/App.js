@@ -588,8 +588,8 @@ function App() {
             textAlign: 'center'
           }}>
             <div style={{ marginBottom: '2rem' }}>
-              <img src="/hcs-logo.png" alt="HCS Logo" style={{ 
-                height: '80px', 
+              <img src="/hcs-logo.png" alt="HCS Logo" style={{
+                height: '100px',
                 marginBottom: '1rem',
                 filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
               }} />
