@@ -57,7 +57,8 @@ cd ${APP_DIR}
 # Step 3: Clone or copy repository (assuming we're running from the repo)
 print_status "Copying application files..."
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-rsync -av --exclude='node_modules' --exclude='build' --exclude='chroma_db' --exclude='.git' ${SCRIPT_DIR}/ ${APP_DIR}/
+REPO_ROOT="$( cd "${SCRIPT_DIR}/.." && pwd )"
+rsync -av --exclude='node_modules' --exclude='build' --exclude='chroma_db' --exclude='.git' --exclude='backups' ${REPO_ROOT}/ ${APP_DIR}/
 
 print_success "Application files copied"
 

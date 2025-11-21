@@ -214,18 +214,19 @@ fi
 # Check 14: .env file
 print_check "Checking .env configuration..."
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-if [ -f "$SCRIPT_DIR/.env" ]; then
+REPO_ROOT="$( cd "${SCRIPT_DIR}/.." && pwd )"
+if [ -f "$REPO_ROOT/.env" ]; then
     print_success ".env file exists"
 
     # Check for required variables
-    if grep -q "OPENAI_API_KEY=sk-" "$SCRIPT_DIR/.env"; then
+    if grep -q "OPENAI_API_KEY=sk-" "$REPO_ROOT/.env"; then
         print_success "OpenAI API key configured"
     else
         print_error "OpenAI API key not configured in .env"
         ERRORS=$((ERRORS + 1))
     fi
 
-    if grep -q "LIQUIDWEB_API_USERNAME=" "$SCRIPT_DIR/.env"; then
+    if grep -q "LIQUIDWEB_API_USERNAME=" "$REPO_ROOT/.env"; then
         print_success "LiquidWeb credentials configured"
     else
         print_warning "LiquidWeb credentials not configured in .env"
@@ -238,8 +239,8 @@ fi
 
 # Check 15: PDF Directory
 print_check "Checking PDF directory..."
-if [ -d "$SCRIPT_DIR/PDFs" ]; then
-    PDF_COUNT=$(ls -1 "$SCRIPT_DIR/PDFs"/*.pdf 2>/dev/null | wc -l)
+if [ -d "$REPO_ROOT/PDFs" ]; then
+    PDF_COUNT=$(ls -1 "$REPO_ROOT/PDFs"/*.pdf 2>/dev/null | wc -l)
     if [ "$PDF_COUNT" -gt 0 ]; then
         print_success "$PDF_COUNT PDF files found"
     else
