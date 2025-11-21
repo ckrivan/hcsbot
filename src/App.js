@@ -32,7 +32,7 @@ function App() {
   const [adminLoggedIn, setAdminLoggedIn] = useState(false);
   const [feedbackData, setFeedbackData] = useState([]);
   const [showChangelog, setShowChangelog] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
   const messagesEndRef = useRef(null);
@@ -561,18 +561,8 @@ function App() {
       )}
       {message.type === 'assistant' && (
         <div style={{marginTop: '0.5rem', textAlign: 'right'}}>
-          <button
-            onClick={() => {
-              const feedback = prompt('Was this response helpful? Please describe any issues:');
-              if (feedback) {
-                submitFeedback(
-                  message.query || 'Unknown query', 
-                  message.content, 
-                  'general', 
-                  feedback
-                );
-              }
-            }}
+          <a
+            href="mailto:ckrivan@hcsonline.com?subject=HCSBot%20Feedback"
             style={{
               fontSize: '0.75rem',
               padding: '0.25rem 0.5rem',
@@ -580,11 +570,13 @@ function App() {
               border: '1px solid #d1d5db',
               borderRadius: '0.375rem',
               cursor: 'pointer',
-              color: '#6b7280'
+              color: '#6b7280',
+              textDecoration: 'none',
+              display: 'inline-block'
             }}
           >
             📝 Feedback
-          </button>
+          </a>
         </div>
       )}
       </div>
@@ -617,20 +609,20 @@ function App() {
                 marginBottom: '1rem',
                 filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
               }} />
-              <h1 style={{ 
-                color: '#1f2937', 
+              <h1 style={{
+                color: '#1f2937',
                 marginBottom: '0.5rem',
                 fontSize: '2rem',
                 fontWeight: '600'
               }}>
-                HCS Technology Group - Corby
+                HCS Technology Group Corby
               </h1>
-              <p style={{ 
-                color: '#6b7280', 
+              <p style={{
+                color: '#6b7280',
                 fontSize: '1.1rem',
                 margin: '0'
               }}>
-                Enter the access password to continue
+                Enter access code to continue
               </p>
             </div>
             
@@ -904,31 +896,12 @@ function App() {
           <div className="header-content">
             <img src={`/hcs-logo.png?v=${ASSET_VERSION}`} alt="HCS Logo" className="hcs-logo" />
             <div className="header-text">
-              <h1>HCS Technology Group - Corby</h1>
+              <h1>HCS Technology Group Corby</h1>
               <p>
                 Technical professionals. Trusted advisors. Ask me about Apple
                 device management, Jamf Pro, iOS deployment, and more.
               </p>
             </div>
-            <button
-              onClick={handleSignOut}
-              style={{
-                position: 'absolute',
-                top: '1rem',
-                right: '1rem',
-                backgroundColor: '#dc2626',
-                color: 'white',
-                border: 'none',
-                padding: '0.5rem 1rem',
-                borderRadius: '0.375rem',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500'
-              }}
-              title="Sign out and return to password screen"
-            >
-              🔓 Sign Out
-            </button>
           </div>
         </div>
 
