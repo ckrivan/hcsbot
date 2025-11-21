@@ -7,6 +7,7 @@ venv/
 
 # Vector database
 chroma_db/
+backups/
 
 # Build output
 build/
