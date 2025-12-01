@@ -114,9 +114,15 @@ function App() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (isAuthenticated && disclaimerAccepted) {
+    if (isAuthenticated) {
+      // Always check system health, regardless of disclaimer
       checkSystemHealth();
       fetchSampleQuestions();
+
+      // Only show chat interface if disclaimer accepted
+      if (!disclaimerAccepted) {
+        return; // Don't set welcome message until disclaimer accepted
+      }
 
       // Initial welcome message - only set if messages array is empty
       setMessages(prevMessages => {
@@ -134,7 +140,7 @@ function App() {
         return prevMessages;
       });
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, disclaimerAccepted]);
 
   // Mobile-friendly API call with fallback
   const makeApiCall = async (url, options = {}) => {
