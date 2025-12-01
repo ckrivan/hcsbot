@@ -37,8 +37,25 @@ function App() {
   const APP_PASSWORD = process.env.REACT_APP_ACCESS_PASSWORD || 'I L0V3 P!ZZ@$$$';
 
   // Version tracking for changelog
-  const CURRENT_VERSION = "1.3.0";
+  const CURRENT_VERSION = "1.4.0";
   const CHANGELOG = {
+    "1.4.0": {
+      title: "Multi-Domain Knowledge Sources",
+      date: "2025-12-01",
+      features: [
+        "🌐 Expanded knowledge sources beyond HCS documentation",
+        "🔍 Searches 4 external domains when HCS docs don't have answers:",
+        "   • Jamf Nation community discussions",
+        "   • Official Jamf documentation (jamf.com)",
+        "   • Apple Support articles",
+        "   • Apple Developer documentation",
+        "🎯 Smart fallback with low-confidence detection (< 0.3 similarity)",
+        "🔗 Direct links to original sources with proper attribution",
+        "⚡ Google Custom Search API integration for reliable results",
+        "📝 Separate content extraction for community threads vs docs",
+        "✨ Dynamic source labeling in bot responses"
+      ]
+    },
     "1.3.0": {
       title: "Apple Style Guide Integration",
       date: "2025-08-21",
@@ -46,7 +63,7 @@ function App() {
         "📘 Official Apple Style Guide integrated into knowledge base",
         "✨ Authoritative Apple terminology guidance (3,276 searchable chunks)",
         "🔤 Correct usage for \"sign-in window\" vs \"login window\"",
-        "⚙️ \"System Settings\" vs \"System Preferences\" clarification", 
+        "⚙️ \"System Settings\" vs \"System Preferences\" clarification",
         "📋 Apple interface conventions and style standards",
         "🔄 System reload functionality for processing new documents"
       ]
@@ -886,25 +903,49 @@ function App() {
                 device management, Jamf Pro, iOS deployment, and more.
               </p>
             </div>
-            <button
-              onClick={handleSignOut}
-              style={{
-                position: 'absolute',
-                top: '1rem',
-                right: '1rem',
-                backgroundColor: '#dc2626',
-                color: 'white',
-                border: 'none',
-                padding: '0.5rem 1rem',
-                borderRadius: '0.375rem',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500'
-              }}
-              title="Sign out and return to password screen"
-            >
-              🔓 Sign Out
-            </button>
+            <div style={{
+              position: 'absolute',
+              top: '1rem',
+              right: '1rem',
+              display: 'flex',
+              gap: '0.5rem'
+            }}>
+              <button
+                onClick={() => setShowChangelog(true)}
+                style={{
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'background-color 0.2s'
+                }}
+                title="See what's new in this version"
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'}
+              >
+                ✨ What's New
+              </button>
+              <button
+                onClick={handleSignOut}
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500'
+                }}
+                title="Sign out and return to password screen"
+              >
+                🔓 Sign Out
+              </button>
+            </div>
           </div>
         </div>
 
