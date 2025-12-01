@@ -49,41 +49,41 @@ function App() {
       title: "Multi-Domain Knowledge Sources",
       date: "2025-12-01",
       features: [
-        "🌐 Expanded knowledge sources beyond HCS documentation",
-        "🔍 Searches 4 external domains when HCS docs don't have answers:",
+        "Expanded knowledge sources beyond HCS documentation",
+        "Searches 4 external domains when HCS docs don't have answers:",
         "   • Jamf Nation community discussions",
         "   • Official Jamf documentation (jamf.com)",
         "   • Apple Support articles",
         "   • Apple Developer documentation",
-        "🎯 Smart fallback with low-confidence detection (< 0.3 similarity)",
-        "🔗 Direct links to original sources with proper attribution",
-        "⚡ Google Custom Search API integration for reliable results",
-        "📝 Separate content extraction for community threads vs docs",
-        "✨ Dynamic source labeling in bot responses"
+        "Smart fallback with low-confidence detection (< 0.3 similarity)",
+        "Direct links to original sources with proper attribution",
+        "Google Custom Search API integration for reliable results",
+        "Separate content extraction for community threads vs docs",
+        "Dynamic source labeling in bot responses"
       ]
     },
     "1.3.0": {
       title: "Apple Style Guide Integration",
       date: "2025-08-21",
       features: [
-        "📘 Official Apple Style Guide integrated into knowledge base",
-        "✨ Authoritative Apple terminology guidance (3,276 searchable chunks)",
-        "🔤 Correct usage for \"sign-in window\" vs \"login window\"",
-        "⚙️ \"System Settings\" vs \"System Preferences\" clarification",
-        "📋 Apple interface conventions and style standards",
-        "🔄 System reload functionality for processing new documents"
+        "Official Apple Style Guide integrated into knowledge base",
+        "Authoritative Apple terminology guidance (3,276 searchable chunks)",
+        "Correct usage for \"sign-in window\" vs \"login window\"",
+        "\"System Settings\" vs \"System Preferences\" clarification",
+        "Apple interface conventions and style standards",
+        "System reload functionality for processing new documents"
       ]
     },
     "1.2.0": {
       title: "Enhanced Search Quality & Admin Dashboard",
       date: "2025-08-21",
       features: [
-        "🎯 Much smarter search filtering - no more irrelevant results!",
-        "🚫 Automatic detection of unsupported topics (Jamf Security Portal, etc.)",
-        "📊 Admin dashboard to view user feedback",
-        "💾 Persistent feedback storage across restarts",
-        "👆 Clickable suggested questions with visual indicators",
-        "🔧 Improved similarity threshold (0.4) for better accuracy"
+        "Much smarter search filtering - no more irrelevant results",
+        "Automatic detection of unsupported topics (Jamf Security Portal, etc.)",
+        "Admin dashboard to view user feedback",
+        "Persistent feedback storage across restarts",
+        "Clickable suggested questions with visual indicators",
+        "Improved similarity threshold (0.4) for better accuracy"
       ]
     }
   };
@@ -798,9 +798,9 @@ function App() {
           flexDirection: 'column',
           animation: 'slideUp 0.3s ease-out'
         }}>
-          {/* Header with gradient */}
+          {/* Header */}
           <div style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
             padding: '2rem',
             position: 'relative',
             color: 'white'
@@ -832,14 +832,6 @@ function App() {
             </button>
 
             <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-              <div style={{
-                background: 'rgba(255, 255, 255, 0.2)',
-                borderRadius: '12px',
-                padding: '0.75rem',
-                fontSize: '2rem'
-              }}>
-                ✨
-              </div>
               <div>
                 <h2 style={{
                   margin: 0,
@@ -936,7 +928,7 @@ function App() {
               color: '#6b7280',
               flex: '1 1 auto'
             }}>
-              Access anytime via the ✨ What's New button
+              Access anytime via the What's New button
             </p>
             <button
               onClick={() => {
@@ -945,7 +937,7 @@ function App() {
               }}
               style={{
                 padding: '0.75rem 1.5rem',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '0.5rem',
@@ -953,19 +945,19 @@ function App() {
                 fontSize: '0.9375rem',
                 fontWeight: '600',
                 transition: 'all 0.2s',
-                boxShadow: '0 4px 6px -1px rgba(102, 126, 234, 0.3)',
+                boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.3)',
                 flex: '0 0 auto'
               }}
               onMouseEnter={(e) => {
                 e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 10px 15px -3px rgba(102, 126, 234, 0.4)';
+                e.target.style.boxShadow = '0 10px 15px -3px rgba(59, 130, 246, 0.4)';
               }}
               onMouseLeave={(e) => {
                 e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = '0 4px 6px -1px rgba(102, 126, 234, 0.3)';
+                e.target.style.boxShadow = '0 4px 6px -1px rgba(59, 130, 246, 0.3)';
               }}
             >
-              Got it! 🚀
+              Got it!
             </button>
           </div>
         </div>
@@ -1181,7 +1173,7 @@ function App() {
               onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'}
               onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'}
             >
-              ✨ What's New
+              What's New
             </button>
           </div>
         </div>
