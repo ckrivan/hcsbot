@@ -11,6 +11,10 @@ from typing import List, Dict, Any, Optional
 import logging
 import time
 import re
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -18,9 +22,17 @@ logger = logging.getLogger(__name__)
 
 
 class JamfNationScraper:
-    """Scraper for Jamf Nation community content"""
+    """Scraper for Jamf, Apple documentation, and community content"""
 
     BASE_URL = "https://community.jamf.com"
+
+    # Allowed domains for search
+    ALLOWED_DOMAINS = [
+        'community.jamf.com',
+        'jamf.com',
+        'support.apple.com',
+        'developer.apple.com'
+    ]
 
     # Focus on high-quality content areas
     KNOWLEDGE_BASE_PATH = "/t5/jamf-pro/ct-p/jamf-pro-knowledge-base"
@@ -72,7 +84,7 @@ class JamfNationScraper:
 
     def search_jamf_nation(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
         """
-        Search Jamf Nation for relevant content using DuckDuckGo HTML search
+        Search Jamf Nation for relevant content using Google Custom Search API
 
         Args:
             query: Search query string
@@ -82,65 +94,75 @@ class JamfNationScraper:
             List of article/discussion data dicts
         """
         try:
-            # Use DuckDuckGo HTML search with site restriction
-            # More scraping-friendly than Google
-            search_query = f"site:community.jamf.com {query}"
-            ddg_url = "https://html.duckduckgo.com/html/"
+            # Get API credentials from environment
+            api_key = os.getenv('GOOGLE_API_KEY')
+            search_engine_id = os.getenv('GOOGLE_SEARCH_ENGINE_ID')
 
-            logger.info(f"Searching Jamf Nation via DuckDuckGo for: {query}")
-
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-
-            data = {
-                'q': search_query,
-                'b': '',  # Start from first result
-                'kl': 'us-en'
-            }
-
-            response = self.session.post(ddg_url, data=data, headers=headers, timeout=30)
-            time.sleep(self.REQUEST_DELAY)
-
-            if response.status_code != 200:
-                logger.error(f"DuckDuckGo search request failed with status {response.status_code}")
+            if not api_key or not search_engine_id:
+                logger.error("Google Custom Search API credentials not configured")
                 return []
 
-            soup = BeautifulSoup(response.content, 'lxml')
+            logger.info(f"Searching Jamf/Apple docs via Google Custom Search for: {query}")
 
-            # Extract DuckDuckGo search results
+            # Google Custom Search API endpoint
+            search_url = "https://www.googleapis.com/customsearch/v1"
+
+            # Create site search filter for allowed domains
+            site_filter = ' OR '.join([f'site:{domain}' for domain in self.ALLOWED_DOMAINS])
+
+            params = {
+                'key': api_key,
+                'cx': search_engine_id,
+                'q': f'{query} ({site_filter})',
+                'num': min(max_results, 10)  # Google API max is 10 per request
+            }
+
+            response = requests.get(search_url, params=params, timeout=30)
+            time.sleep(0.5)  # Brief delay to be polite
+
+            if response.status_code != 200:
+                logger.error(f"Google Custom Search API request failed with status {response.status_code}")
+                logger.error(f"Response: {response.text}")
+                return []
+
+            data = response.json()
+
+            # Extract search results
             results = []
-            search_results = soup.find_all('div', class_=re.compile('result__body', re.I))
+            search_results = data.get('items', [])
 
             for result in search_results[:max_results]:
                 try:
-                    # Extract title and link
-                    title_elem = result.find('a', class_=re.compile('result__a', re.I))
+                    title = result.get('title', '')
+                    url = result.get('link', '')
+                    snippet = result.get('snippet', '')[:500]
 
-                    if not title_elem:
+                    # Only include URLs from allowed domains
+                    if not any(domain in url for domain in self.ALLOWED_DOMAINS):
                         continue
 
-                    title = title_elem.get_text().strip()
-                    url = title_elem.get('href', '')
+                    # Skip non-discussion URLs (like user profiles, categories, etc.) for community.jamf.com
+                    if 'community.jamf.com' in url:
+                        if any(skip in url for skip in ['/user/', '/ct-p/', '/bd-p/', '/kudos/']):
+                            continue
 
-                    # Only include Jamf Nation URLs
-                    if 'community.jamf.com' not in url:
-                        continue
-
-                    # Skip non-discussion URLs (like user profiles, categories, etc.)
-                    if any(skip in url for skip in ['/user/', '/ct-p/', '/bd-p/', '/kudos/']):
-                        continue
-
-                    # Extract snippet
-                    snippet_elem = result.find('a', class_=re.compile('result__snippet', re.I))
-                    snippet = snippet_elem.get_text().strip()[:500] if snippet_elem else ""
+                    # Determine source type based on domain
+                    source_type = 'external_docs'
+                    if 'community.jamf.com' in url:
+                        source_type = 'jamf_nation'
+                    elif 'jamf.com' in url:
+                        source_type = 'jamf_docs'
+                    elif 'support.apple.com' in url:
+                        source_type = 'apple_support'
+                    elif 'developer.apple.com' in url:
+                        source_type = 'apple_developer'
 
                     results.append({
                         'title': title,
                         'url': url,
                         'snippet': snippet,
                         'published_date': datetime.now().strftime('%Y-%m-%d'),
-                        'source_type': 'jamf_nation'
+                        'source_type': source_type
                     })
 
                     logger.info(f"  Found: {title[:60]}...")
@@ -149,7 +171,7 @@ class JamfNationScraper:
                     logger.error(f"Error parsing search result: {e}")
                     continue
 
-            logger.info(f"Found {len(results)} Jamf Nation results for query: {query}")
+            logger.info(f"Found {len(results)} results for query: {query}")
             return results
 
         except Exception as e:
@@ -158,7 +180,7 @@ class JamfNationScraper:
 
     def extract_article(self, url: str) -> Optional[Dict[str, Any]]:
         """
-        Extract full content from a Jamf Nation article or discussion
+        Extract full content from Jamf, Apple documentation, or community discussions
 
         Returns:
             Dict with keys: url, title, content, published_date, source_type
@@ -183,27 +205,22 @@ class JamfNationScraper:
                 date_str = date_elem.get_text().strip()
                 pub_date = self._parse_date(date_str)
 
-            # Extract main content
-            content_parts = []
-
-            # Get all post content divs (original post + replies)
-            # Jamf Nation uses post__content class for post bodies
-            posts = soup.find_all('div', class_=re.compile('post__content', re.I))
-
-            for idx, post in enumerate(posts[:5]):  # Get up to 5 posts (original + top 4 replies)
-                # Remove script/style/nav elements
-                for tag in post(['script', 'style', 'nav', 'header', 'footer', 'button']):
-                    tag.decompose()
-
-                post_text = post.get_text(separator='\n', strip=True)
-
-                if len(post_text) > 100:  # Only include substantial content
-                    if idx == 0:
-                        content_parts.append(post_text)
-                    else:
-                        content_parts.append(f"\n\n=== Community Reply {idx} ===\n{post_text[:1500]}")
-
-            content = '\n\n'.join(content_parts)
+            # Determine source type and extraction method based on URL
+            source_type = 'external_docs'
+            if 'community.jamf.com' in url:
+                source_type = 'jamf_nation'
+                content = self._extract_jamf_nation_content(soup)
+            elif 'jamf.com' in url:
+                source_type = 'jamf_docs'
+                content = self._extract_generic_content(soup)
+            elif 'support.apple.com' in url:
+                source_type = 'apple_support'
+                content = self._extract_generic_content(soup)
+            elif 'developer.apple.com' in url:
+                source_type = 'apple_developer'
+                content = self._extract_generic_content(soup)
+            else:
+                content = self._extract_generic_content(soup)
 
             if not content or len(content) < 50:
                 logger.warning(f"Extracted content too short for {url}")
@@ -214,13 +231,74 @@ class JamfNationScraper:
                 'title': title,
                 'content': content,
                 'published_date': pub_date.strftime('%Y-%m-%d') if pub_date else None,
-                'source_type': 'jamf_nation',
-                'section': 'jamf-nation'
+                'source_type': source_type,
+                'section': source_type.replace('_', '-')
             }
 
         except Exception as e:
             logger.error(f"Error extracting article from {url}: {e}")
             return None
+
+    def _extract_jamf_nation_content(self, soup: BeautifulSoup) -> str:
+        """Extract content specifically from Jamf Nation community threads"""
+        content_parts = []
+
+        # Get all post content divs (original post + replies)
+        # Jamf Nation uses post__content class for post bodies
+        posts = soup.find_all('div', class_=re.compile('post__content', re.I))
+
+        for idx, post in enumerate(posts[:5]):  # Get up to 5 posts (original + top 4 replies)
+            # Remove script/style/nav elements
+            for tag in post(['script', 'style', 'nav', 'header', 'footer', 'button']):
+                tag.decompose()
+
+            post_text = post.get_text(separator='\n', strip=True)
+
+            if len(post_text) > 100:  # Only include substantial content
+                if idx == 0:
+                    content_parts.append(post_text)
+                else:
+                    content_parts.append(f"\n\n=== Community Reply {idx} ===\n{post_text[:1500]}")
+
+        return '\n\n'.join(content_parts)
+
+    def _extract_generic_content(self, soup: BeautifulSoup) -> str:
+        """Extract content from generic documentation pages (Apple, Jamf docs)"""
+        # Try to find the main content area
+        content = None
+
+        # Common content containers for documentation sites
+        content_selectors = [
+            ('article', {}),
+            ('main', {}),
+            ('div', {'class': re.compile('content|article|body|main', re.I)}),
+            ('div', {'id': re.compile('content|article|body|main', re.I)})
+        ]
+
+        for tag, attrs in content_selectors:
+            content_elem = soup.find(tag, attrs)
+            if content_elem:
+                # Remove unwanted elements
+                for unwanted in content_elem(['script', 'style', 'nav', 'header', 'footer', 'aside', 'button']):
+                    unwanted.decompose()
+
+                content = content_elem.get_text(separator='\n', strip=True)
+                if len(content) > 100:
+                    break
+
+        # Fallback: get body text
+        if not content or len(content) < 100:
+            body = soup.find('body')
+            if body:
+                for unwanted in body(['script', 'style', 'nav', 'header', 'footer', 'aside', 'button']):
+                    unwanted.decompose()
+                content = body.get_text(separator='\n', strip=True)
+
+        # Limit to reasonable length
+        if content and len(content) > 5000:
+            content = content[:5000] + "\n\n[Content truncated for length]"
+
+        return content if content else ""
 
     def get_popular_articles(self, category: str = "jamf-pro", limit: int = 50) -> List[Dict[str, Any]]:
         """

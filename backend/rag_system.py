@@ -3,7 +3,6 @@ from typing import List, Dict, Any
 import logging
 import os
 from dotenv import load_dotenv
-from jamf_nation_scraper import JamfNationScraper
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -53,9 +52,17 @@ class RAGSystem:
         'o365': 'Microsoft 365 (formerly Office 365)',
     }
 
+    # Map source types to human-readable display names
+    SOURCE_TYPE_NAMES = {
+        'jamf_nation': 'Jamf Nation community',
+        'jamf_docs': 'Jamf documentation',
+        'apple_support': 'Apple Support',
+        'apple_developer': 'Apple Developer documentation',
+        'external_docs': 'external documentation'
+    }
+
     def __init__(self, vector_db):
         self.vector_db = vector_db
-        self.jamf_scraper = JamfNationScraper()
         try:
             # Initialize OpenAI client with minimal parameters
             api_key = os.getenv('OPENAI_API_KEY')
@@ -189,14 +196,13 @@ class RAGSystem:
             - Use clear numbered lists (1. 2. 3.) for step-by-step instructions
             - Use bullet points (•) for feature lists or options
             - Use bold text for **important terms and concepts**
-            - Use `code formatting` for technical terms, commands, and UI elements (keep inline code with surrounding text on same line)
+            - Use `code formatting` for technical terms, commands, and UI elements
             - Structure your response with clear headings (## Main Topics, ### Subtopics)
             - Add visual separators and spacing between sections
             - Use emojis sparingly for visual appeal (⚠️ for warnings, ✅ for success, 📝 for notes)
             - Create clear visual hierarchy with consistent formatting
             - Keep paragraphs short and scannable
             - Use line breaks generously to create white space
-            - IMPORTANT: Keep inline code elements on the same line as surrounding text (e.g., "Go to `System Settings`." not "Go to\n`System Settings`\n.")
             
             Use the provided PDF documentation to answer questions accurately. Always cite your sources with the PDF filename and page number.
             If you can't find the answer in the provided context, state this clearly and directly.
@@ -356,71 +362,75 @@ Please provide a helpful answer based on the documentation above. Include the PD
                 if not self._results_contain_key_words(question, filtered_docs):
                     logger.info(f"Multi-word query '{question}' doesn't have good word matches in results")
                     filtered_docs = []
-            
-            # Check if we should search Jamf Nation
+
+            # Check if we should search external sources
             # Either no HCS docs, or low confidence results
             best_similarity = max([doc.get('similarity_score', 0) for doc in filtered_docs]) if filtered_docs else 0
             low_confidence = best_similarity < 0.3  # Threshold for low confidence
 
             if not filtered_docs or low_confidence:
                 if low_confidence:
-                    logger.info(f"Low confidence HCS results (best: {best_similarity:.3f}), also searching Jamf Nation for query: {question}")
+                    logger.info(f"Low confidence HCS results (best: {best_similarity:.3f}), also searching external sources for query: {question}")
                 else:
-                    logger.info(f"No HCS docs found, falling back to Jamf Nation for query: {question}")
+                    logger.info(f"No HCS docs found, falling back to external sources for query: {question}")
 
                 try:
-                    jamf_results = self.jamf_scraper.search_jamf_nation(question, max_results=3)
+                    external_results = self.jamf_scraper.search_jamf_nation(question, max_results=3)
 
-                    if jamf_results:
-                        logger.info(f"Found {len(jamf_results)} Jamf Nation results")
+                    if external_results:
+                        logger.info(f"Found {len(external_results)} external results")
 
                         # Extract full content from top result
-                        top_result = jamf_results[0]
+                        top_result = external_results[0]
                         full_article = self.jamf_scraper.extract_article(top_result['url'])
 
                         if full_article and len(full_article.get('content', '')) > 100:
+                            # Get source type and display name
+                            source_type = full_article.get('source_type', 'external_docs')
+                            source_display_name = self.SOURCE_TYPE_NAMES.get(source_type, 'external documentation')
+
                             # Format as a doc for the RAG system
-                            jamf_docs = [{
+                            external_docs = [{
                                 'text': full_article['content'],
-                                'filename': 'Jamf Nation Community',
+                                'filename': source_display_name.title(),
                                 'url': full_article['url'],
                                 'page_number': 1,
                                 'similarity_score': 0.8,  # High confidence for search results
-                                'source_type': 'jamf_nation',
+                                'source_type': source_type,
                                 'published_date': full_article.get('published_date', 'recent')
                             }]
 
-                            # Generate response using Jamf Nation content
-                            logger.info("Generating response using Jamf Nation content")
-                            response = self.generate_response(question, jamf_docs)
+                            # Generate response using external content
+                            logger.info(f"Generating response using {source_display_name} content")
+                            response = self.generate_response(question, external_docs)
 
-                            # Add note about source and link to original thread
+                            # Add note about source and link to original page
                             response['answer'] = (
-                                f"*Note: This answer is from the [Jamf Nation community]({full_article['url']}), "
+                                f"*Note: This answer is from [{source_display_name}]({full_article['url']}), "
                                 "as we didn't find this in our HCS documentation.*\n\n" +
                                 response['answer']
                             )
 
-                            # Update sources to show Jamf Nation
+                            # Update sources to show external source
                             response['sources'] = [{
-                                'filename': 'Jamf Nation Community',
+                                'filename': source_display_name.title(),
                                 'page_number': 1,
                                 'url': full_article['url'],
                                 'similarity_score': 0.8,
-                                'source_type': 'jamf_nation'
+                                'source_type': source_type
                             }]
 
                             return response
 
-                    # If Jamf Nation also had no results
-                    logger.info("No relevant results from Jamf Nation either")
+                    # If external sources also had no results
+                    logger.info("No relevant results from external sources either")
 
                 except Exception as e:
-                    logger.error(f"Error querying Jamf Nation: {e}")
+                    logger.error(f"Error querying external sources: {e}")
 
-                # Both HCS and Jamf Nation had no results
+                # Both HCS and external sources had no results
                 return {
-                    'answer': "I couldn't find relevant information in the HCS Apple documentation or Jamf Nation community to answer your question. Please try rephrasing your question or ask about topics covered in our Apple technology guides (Jamf Pro, iOS deployment, device management, etc.).\n\n**Tip:** If you think this should have found results, please use the feedback button to report this issue.",
+                    'answer': "I couldn't find relevant information in the HCS Apple documentation or external sources (Jamf Nation, Apple Support, Apple Developer) to answer your question. Please try rephrasing your question or ask about topics covered in our Apple technology guides (Jamf Pro, iOS deployment, device management, etc.).\n\n**Tip:** If you think this should have found results, please use the feedback button to report this issue.",
                     'sources': [],
                     'query': question,
                     'context_used': 0,
@@ -557,52 +567,14 @@ Please provide a helpful answer based on the documentation above. Include the PD
         return match_ratio >= 0.5  # At least 50% of key words should match
     
     def get_sample_questions(self) -> List[str]:
-        """Return sample questions that rotate daily"""
-        import datetime
-        import random
-
-        # All available sample questions organized by category
-        all_questions = [
-            # Jamf Connect & SSO
-            "How do I configure Jamf Connect with Microsoft Entra ID?",
-            "How do I set up Platform SSO with Jamf Pro?",
-            "How do I configure Jamf Connect with Okta?",
-            "How do I configure Jamf Connect with Google Workspace?",
-
-            # Device Enrollment & ABM
-            "What is the process for enrolling devices in Apple Business Manager?",
-            "How do I set up automated device enrollment?",
-            "How do I manage Apple TV devices through ABM?",
-            "How do I configure SCIM with ABM and Entra ID?",
-
-            # Application Deployment
+        """Return sample questions for demo purposes"""
+        return [
             "How do I deploy Zoom using Jamf Pro?",
-            "How do I deploy Microsoft 365 apps?",
-            "What are the PPPC requirements for Zoom?",
-
-            # macOS Management
             "What are the requirements for iOS 18 device management?",
-            "What is the process for macOS Sonoma deployment?",
             "How do I set up Apple Configurator 2 blueprints?",
-            "How do I set up Bootstrap Token?",
-
-            # Security & FileVault
-            "How do I enforce FileVault encryption?",
-            "How do I escrow FileVault keys with Jamf Pro?",
-            "How do I set up Escrow Buddy?",
-
-            # iOS & Mobile Management
-            "What are the best practices for iOS app deployment?",
-            "How do I manage iOS devices with Jamf Pro?",
-            "How do I configure supervised mode for iOS devices?"
+            "What is the process for enrolling devices in Apple Business Manager?",
+            "How do I configure Microsoft 365 with Jamf Connect?",
+            "What are the steps for setting up Bootstrap Token?",
+            "How do I manage Apple TV devices through ABM?",
+            "What is the process for macOS Sonoma deployment?"
         ]
-
-        # Use date as seed for consistent daily rotation
-        today = datetime.date.today()
-        day_seed = int(today.strftime("%Y%m%d"))
-
-        # Create deterministic random selection based on day
-        random.seed(day_seed)
-        selected = random.sample(all_questions, min(10, len(all_questions)))
-
-        return selected
