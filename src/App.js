@@ -769,7 +769,7 @@ function App() {
   // Changelog Modal Component
   const ChangelogModal = () => {
     const currentChangelog = CHANGELOG[CURRENT_VERSION];
-    
+
     return (
       <div style={{
         position: 'fixed',
@@ -777,47 +777,167 @@ function App() {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1000
+        zIndex: 1000,
+        padding: '1rem',
+        animation: 'fadeIn 0.2s ease-out'
       }}>
         <div style={{
           backgroundColor: 'white',
           borderRadius: '1rem',
-          padding: '2rem',
-          maxWidth: '600px',
-          maxHeight: '80vh',
-          overflow: 'auto',
-          margin: '1rem'
+          maxWidth: '700px',
+          width: '100%',
+          maxHeight: '85vh',
+          overflow: 'hidden',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          display: 'flex',
+          flexDirection: 'column',
+          animation: 'slideUp 0.3s ease-out'
         }}>
-          <div style={{display: 'flex', alignItems: 'center', marginBottom: '1rem'}}>
-            <span style={{fontSize: '2rem', marginRight: '1rem'}}>🎉</span>
-            <div>
-              <h2 style={{margin: 0, color: '#1f2937'}}>{currentChangelog.title}</h2>
-              <p style={{margin: 0, color: '#6b7280', fontSize: '0.875rem'}}>Version {CURRENT_VERSION} - {currentChangelog.date}</p>
+          {/* Header with gradient */}
+          <div style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            padding: '2rem',
+            position: 'relative',
+            color: 'white'
+          }}>
+            <button
+              onClick={() => setShowChangelog(false)}
+              style={{
+                position: 'absolute',
+                top: '1rem',
+                right: '1rem',
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                cursor: 'pointer',
+                fontSize: '1.25rem',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.3)'}
+              onMouseLeave={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.2)'}
+              title="Close"
+            >
+              ×
+            </button>
+
+            <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                borderRadius: '12px',
+                padding: '0.75rem',
+                fontSize: '2rem'
+              }}>
+                ✨
+              </div>
+              <div>
+                <h2 style={{
+                  margin: 0,
+                  fontSize: '1.75rem',
+                  fontWeight: '700',
+                  marginBottom: '0.25rem'
+                }}>
+                  {currentChangelog.title}
+                </h2>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  fontSize: '0.875rem',
+                  opacity: 0.9
+                }}>
+                  <span style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '1rem',
+                    fontWeight: '600'
+                  }}>
+                    v{CURRENT_VERSION}
+                  </span>
+                  <span>{currentChangelog.date}</span>
+                </div>
+              </div>
             </div>
           </div>
-          
-          <div style={{marginBottom: '2rem'}}>
-            <h3 style={{color: '#374151', marginBottom: '1rem'}}>What's New:</h3>
-            <ul style={{listStyle: 'none', padding: 0}}>
+
+          {/* Content */}
+          <div style={{
+            padding: '2rem',
+            overflow: 'auto',
+            flex: 1
+          }}>
+            <h3 style={{
+              color: '#1f2937',
+              fontSize: '1.125rem',
+              fontWeight: '600',
+              marginBottom: '1.5rem',
+              marginTop: 0
+            }}>
+              What's New
+            </h3>
+
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem'
+            }}>
               {currentChangelog.features.map((feature, index) => (
-                <li key={index} style={{
-                  marginBottom: '0.75rem',
-                  padding: '0.75rem',
-                  backgroundColor: '#f3f4f6',
-                  borderRadius: '0.5rem',
-                  borderLeft: '4px solid #3b82f6'
+                <div key={index} style={{
+                  padding: '1rem 1.25rem',
+                  background: 'linear-gradient(to right, #f9fafb 0%, #ffffff 100%)',
+                  borderRadius: '0.75rem',
+                  border: '1px solid #e5e7eb',
+                  fontSize: '0.9375rem',
+                  lineHeight: '1.6',
+                  color: '#374151',
+                  transition: 'all 0.2s',
+                  cursor: 'default'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#3b82f6';
+                  e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(59, 130, 246, 0.1)';
+                  e.currentTarget.style.transform = 'translateX(4px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                  e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.transform = 'translateX(0)';
                 }}>
                   {feature}
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
-          
-          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+
+          {/* Footer */}
+          <div style={{
+            padding: '1.5rem 2rem',
+            borderTop: '1px solid #e5e7eb',
+            background: '#f9fafb',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '1rem',
+            flexWrap: 'wrap'
+          }}>
+            <p style={{
+              margin: 0,
+              fontSize: '0.8125rem',
+              color: '#6b7280',
+              flex: '1 1 auto'
+            }}>
+              Access anytime via the ✨ What's New button
+            </p>
             <button
               onClick={() => {
                 localStorage.setItem('lastSeenVersion', CURRENT_VERSION);
@@ -825,21 +945,47 @@ function App() {
               }}
               style={{
                 padding: '0.75rem 1.5rem',
-                backgroundColor: '#3b82f6',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '0.5rem',
                 cursor: 'pointer',
-                fontSize: '1rem'
+                fontSize: '0.9375rem',
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                boxShadow: '0 4px 6px -1px rgba(102, 126, 234, 0.3)',
+                flex: '0 0 auto'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = '0 10px 15px -3px rgba(102, 126, 234, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 4px 6px -1px rgba(102, 126, 234, 0.3)';
               }}
             >
-              Got it, thanks! 🚀
+              Got it! 🚀
             </button>
-            <span style={{fontSize: '0.75rem', color: '#9ca3af'}}>
-              You can always view changes at yourdomain.com/#changelog
-            </span>
           </div>
         </div>
+
+        <style>{`
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes slideUp {
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}</style>
       </div>
     );
   };
