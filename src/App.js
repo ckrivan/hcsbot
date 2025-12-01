@@ -837,7 +837,8 @@ function App() {
                   margin: 0,
                   fontSize: '1.75rem',
                   fontWeight: '700',
-                  marginBottom: '0.25rem'
+                  marginBottom: '0.25rem',
+                  color: 'white'
                 }}>
                   {currentChangelog.title}
                 </h2>
