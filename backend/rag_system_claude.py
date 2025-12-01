@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 import logging
 import os
 from dotenv import load_dotenv
+from jamf_nation_scraper import JamfNationScraper
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 class RAGSystemClaude:
     def __init__(self, vector_db):
         self.vector_db = vector_db
+        self.jamf_scraper = JamfNationScraper()
         self.anthropic_client = anthropic.Anthropic(
             api_key=os.getenv('ANTHROPIC_API_KEY')
         )
@@ -134,21 +136,66 @@ Focus on providing clear, actionable information based on the documentation."""
             filtered_docs = [doc for doc in relevant_docs if doc.get('similarity_score', 0) > min_similarity_threshold]
             
             if not filtered_docs:
-                # Provide Jamf Nation search link as fallback
-                logger.info(f"No HCS docs found, providing Jamf Nation search link for query: {question}")
+                # Fallback to Jamf Nation as secondary source
+                logger.info(f"No HCS docs found, falling back to Jamf Nation for query: {question}")
 
-                # URL-encode the question for the search link
-                import urllib.parse
-                encoded_query = urllib.parse.quote(question)
-                jamf_search_url = f"https://community.jamf.com/t5/forums/searchpage/tab/message?q={encoded_query}"
+                try:
+                    jamf_results = self.jamf_scraper.search_jamf_nation(question, max_results=3)
 
+                    if jamf_results:
+                        logger.info(f"Found {len(jamf_results)} Jamf Nation results")
+
+                        # Extract full content from top result
+                        top_result = jamf_results[0]
+                        full_article = self.jamf_scraper.extract_article(top_result['url'])
+
+                        if full_article and len(full_article.get('content', '')) > 100:
+                            # Format as a doc for the RAG system
+                            jamf_docs = [{
+                                'text': full_article['content'],
+                                'filename': 'Jamf Nation Community',
+                                'url': full_article['url'],
+                                'page_number': 1,
+                                'similarity_score': 0.8,  # High confidence for search results
+                                'source_type': 'jamf_nation',
+                                'published_date': full_article.get('published_date', 'recent')
+                            }]
+
+                            # Generate response using Jamf Nation content
+                            logger.info("Generating response using Jamf Nation content")
+                            response = self.generate_response(question, jamf_docs)
+
+                            # Add note about source and link to original thread
+                            response['answer'] = (
+                                f"*Note: This answer is from the [Jamf Nation community]({full_article['url']}), "
+                                "as we didn't find this in our HCS documentation.*\n\n" +
+                                response['answer']
+                            )
+
+                            # Update sources to show Jamf Nation
+                            response['sources'] = [{
+                                'filename': 'Jamf Nation Community',
+                                'page_number': 1,
+                                'url': full_article['url'],
+                                'similarity_score': 0.8,
+                                'source_type': 'jamf_nation'
+                            }]
+
+                            return response
+
+                    # If Jamf Nation also had no results
+                    logger.info("No relevant results from Jamf Nation either")
+
+                except Exception as e:
+                    logger.error(f"Error querying Jamf Nation: {e}")
+
+                # Both HCS and Jamf Nation had no results
                 return {
-                    'answer': f"I couldn't find relevant information in the HCS Apple documentation to answer your question.\n\n**Try Jamf Nation:** You may find helpful information in the Jamf community:\n\n[Search Jamf Nation for \"{question}\"]({jamf_search_url})\n\n**Tip:** If you think this should be in our HCS documentation, please use the feedback button to let us know!",
+                    'answer': "I couldn't find relevant information in the HCS Apple documentation or Jamf Nation community to answer your question. Please try rephrasing your question or ask about topics covered in our Apple technology guides (Jamf Pro, iOS deployment, device management, etc.).\n\n**Tip:** If you think this should have found results, please use the feedback button to report this issue.",
                     'sources': [],
                     'query': question,
                     'context_used': 0,
-                    'no_relevant_docs': True,
-                    'jamf_nation_link': jamf_search_url
+                    'no_relevant_docs': True
                 }
             
             # Check if this might be an ambiguous query that needs clarification

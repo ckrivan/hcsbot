@@ -72,7 +72,7 @@ class JamfNationScraper:
 
     def search_jamf_nation(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
         """
-        Search Jamf Nation for relevant content using Google search with site restriction
+        Search Jamf Nation for relevant content using DuckDuckGo HTML search
 
         Args:
             query: Search query string
@@ -82,53 +82,57 @@ class JamfNationScraper:
             List of article/discussion data dicts
         """
         try:
-            # Use Google search with site restriction for Jamf Nation
-            # This is more reliable than scraping Jamf Nation's JS-based search
+            # Use DuckDuckGo HTML search with site restriction
+            # More scraping-friendly than Google
             search_query = f"site:community.jamf.com {query}"
-            google_url = "https://www.google.com/search"
-            params = {
-                'q': search_query,
-                'num': min(max_results, 10)
-            }
+            ddg_url = "https://html.duckduckgo.com/html/"
 
-            logger.info(f"Searching Jamf Nation via Google for: {query}")
+            logger.info(f"Searching Jamf Nation via DuckDuckGo for: {query}")
 
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
-            response = self.session.get(google_url, params=params, headers=headers, timeout=30)
+
+            data = {
+                'q': search_query,
+                'b': '',  # Start from first result
+                'kl': 'us-en'
+            }
+
+            response = self.session.post(ddg_url, data=data, headers=headers, timeout=30)
             time.sleep(self.REQUEST_DELAY)
 
             if response.status_code != 200:
-                logger.error(f"Google search request failed with status {response.status_code}")
+                logger.error(f"DuckDuckGo search request failed with status {response.status_code}")
                 return []
 
             soup = BeautifulSoup(response.content, 'lxml')
 
-            # Extract Google search results
+            # Extract DuckDuckGo search results
             results = []
-            search_results = soup.find_all('div', class_='g')
+            search_results = soup.find_all('div', class_=re.compile('result__body', re.I))
 
             for result in search_results[:max_results]:
                 try:
                     # Extract title and link
-                    title_elem = result.find('h3')
-                    link_elem = result.find('a')
+                    title_elem = result.find('a', class_=re.compile('result__a', re.I))
 
-                    if not title_elem or not link_elem:
+                    if not title_elem:
                         continue
 
                     title = title_elem.get_text().strip()
-                    url = link_elem.get('href', '')
+                    url = title_elem.get('href', '')
 
                     # Only include Jamf Nation URLs
                     if 'community.jamf.com' not in url:
                         continue
 
-                    # Extract snippet from Google's search result
-                    snippet_elem = result.find('div', class_=re.compile('VwiC3b', re.I))
-                    if not snippet_elem:
-                        snippet_elem = result.find('span', class_=re.compile('aCOpRe', re.I))
+                    # Skip non-discussion URLs (like user profiles, categories, etc.)
+                    if any(skip in url for skip in ['/user/', '/ct-p/', '/bd-p/', '/kudos/']):
+                        continue
+
+                    # Extract snippet
+                    snippet_elem = result.find('a', class_=re.compile('result__snippet', re.I))
                     snippet = snippet_elem.get_text().strip()[:500] if snippet_elem else ""
 
                     results.append({
@@ -165,13 +169,15 @@ class JamfNationScraper:
 
         try:
             # Extract title
-            title_elem = soup.find('h1', class_=re.compile('lia-message-subject', re.I))
+            title_elem = soup.find('h1')
             if not title_elem:
-                title_elem = soup.find('h1') or soup.find('title')
+                title_elem = soup.find('title')
             title = title_elem.get_text().strip() if title_elem else "Untitled"
 
-            # Extract publication date
-            date_elem = soup.find('span', class_=re.compile('DateTime', re.I))
+            # Extract publication date (try various locations)
+            date_elem = soup.find('time')
+            if not date_elem:
+                date_elem = soup.find('span', class_=re.compile('date', re.I))
             pub_date = None
             if date_elem:
                 date_str = date_elem.get_text().strip()
@@ -180,30 +186,22 @@ class JamfNationScraper:
             # Extract main content
             content_parts = []
 
-            # Get original post content
-            main_content = soup.find('div', class_=re.compile('lia-message-body-content', re.I))
-            if main_content:
-                # Remove script/style elements
-                for tag in main_content(['script', 'style', 'nav', 'header', 'footer']):
+            # Get all post content divs (original post + replies)
+            # Jamf Nation uses post__content class for post bodies
+            posts = soup.find_all('div', class_=re.compile('post__content', re.I))
+
+            for idx, post in enumerate(posts[:5]):  # Get up to 5 posts (original + top 4 replies)
+                # Remove script/style/nav elements
+                for tag in post(['script', 'style', 'nav', 'header', 'footer', 'button']):
                     tag.decompose()
 
-                content_text = main_content.get_text(separator='\n', strip=True)
-                content_parts.append(content_text)
+                post_text = post.get_text(separator='\n', strip=True)
 
-            # Also get accepted solution if it exists
-            solution = soup.find('div', class_=re.compile('lia-accepted-solution', re.I))
-            if solution:
-                solution_text = solution.get_text(separator='\n', strip=True)
-                content_parts.append("\n\n=== Accepted Solution ===\n" + solution_text)
-
-            # Get top replies (up to 3) for additional context
-            replies = soup.find_all('div', class_=re.compile('lia-linear-display-message-view', re.I))[:3]
-            for idx, reply in enumerate(replies):
-                reply_body = reply.find('div', class_=re.compile('lia-message-body-content', re.I))
-                if reply_body:
-                    reply_text = reply_body.get_text(separator='\n', strip=True)
-                    if len(reply_text) > 100:  # Only include substantial replies
-                        content_parts.append(f"\n\n=== Community Reply {idx+1} ===\n{reply_text[:1000]}")
+                if len(post_text) > 100:  # Only include substantial content
+                    if idx == 0:
+                        content_parts.append(post_text)
+                    else:
+                        content_parts.append(f"\n\n=== Community Reply {idx} ===\n{post_text[:1500]}")
 
             content = '\n\n'.join(content_parts)
 
