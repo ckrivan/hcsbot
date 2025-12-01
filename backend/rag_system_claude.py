@@ -135,9 +135,16 @@ Focus on providing clear, actionable information based on the documentation."""
             min_similarity_threshold = 0.15  # Adjust based on testing
             filtered_docs = [doc for doc in relevant_docs if doc.get('similarity_score', 0) > min_similarity_threshold]
             
-            if not filtered_docs:
-                # Fallback to Jamf Nation as secondary source
-                logger.info(f"No HCS docs found, falling back to Jamf Nation for query: {question}")
+            # Check if we should search Jamf Nation
+            # Either no HCS docs, or low confidence results
+            best_similarity = max([doc.get('similarity_score', 0) for doc in filtered_docs]) if filtered_docs else 0
+            low_confidence = best_similarity < 0.3  # Threshold for low confidence
+
+            if not filtered_docs or low_confidence:
+                if low_confidence:
+                    logger.info(f"Low confidence HCS results (best: {best_similarity:.3f}), also searching Jamf Nation for query: {question}")
+                else:
+                    logger.info(f"No HCS docs found, falling back to Jamf Nation for query: {question}")
 
                 try:
                     jamf_results = self.jamf_scraper.search_jamf_nation(question, max_results=3)
