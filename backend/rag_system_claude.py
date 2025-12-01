@@ -134,12 +134,21 @@ Focus on providing clear, actionable information based on the documentation."""
             filtered_docs = [doc for doc in relevant_docs if doc.get('similarity_score', 0) > min_similarity_threshold]
             
             if not filtered_docs:
+                # Provide Jamf Nation search link as fallback
+                logger.info(f"No HCS docs found, providing Jamf Nation search link for query: {question}")
+
+                # URL-encode the question for the search link
+                import urllib.parse
+                encoded_query = urllib.parse.quote(question)
+                jamf_search_url = f"https://community.jamf.com/t5/forums/searchpage/tab/message?q={encoded_query}"
+
                 return {
-                    'answer': "I couldn't find relevant information in the HCS Apple documentation to answer your question. Please try rephrasing your question or ask about topics covered in our Apple technology guides (Jamf Pro, iOS deployment, device management, etc.).\n\n**Tip:** If you think this should have found results, please use the feedback button to report this issue.",
+                    'answer': f"I couldn't find relevant information in the HCS Apple documentation to answer your question.\n\n**Try Jamf Nation:** You may find helpful information in the Jamf community:\n\n[Search Jamf Nation for \"{question}\"]({jamf_search_url})\n\n**Tip:** If you think this should be in our HCS documentation, please use the feedback button to let us know!",
                     'sources': [],
                     'query': question,
                     'context_used': 0,
-                    'no_relevant_docs': True
+                    'no_relevant_docs': True,
+                    'jamf_nation_link': jamf_search_url
                 }
             
             # Check if this might be an ambiguous query that needs clarification

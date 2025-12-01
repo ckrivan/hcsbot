@@ -35,6 +35,8 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const messagesEndRef = useRef(null);
 
   // Password configuration - handles spaces and special characters
@@ -100,8 +102,19 @@ function App() {
     }
   }, []);
 
+  // Check if disclaimer has been accepted
   useEffect(() => {
-    if (isAuthenticated) {
+    const disclaimerStatus = localStorage.getItem('hcs_disclaimer_accepted');
+    if (disclaimerStatus === 'true') {
+      setDisclaimerAccepted(true);
+    } else if (isAuthenticated) {
+      // Show disclaimer on first visit after authentication
+      setShowDisclaimer(true);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated && disclaimerAccepted) {
       checkSystemHealth();
       fetchSampleQuestions();
 
@@ -306,6 +319,12 @@ function App() {
     // Cleanup
     return () => window.removeEventListener('hashchange', checkHash);
   }, []);
+
+  const acceptDisclaimer = () => {
+    localStorage.setItem('hcs_disclaimer_accepted', 'true');
+    setDisclaimerAccepted(true);
+    setShowDisclaimer(false);
+  };
 
   const handleSubmit = e => {
     e.preventDefault();
@@ -862,6 +881,82 @@ function App() {
   return (
     <div className="container">
       {showChangelog && <ChangelogModal />}
+
+      {showDisclaimer && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '1rem'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.5rem',
+            padding: '2rem',
+            maxWidth: '600px',
+            width: '100%',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+          }}>
+            <h2 style={{
+              color: '#1f2937',
+              fontSize: '1.5rem',
+              fontWeight: '600',
+              marginBottom: '1rem'
+            }}>
+              Welcome to HCSBot
+            </h2>
+            <div style={{
+              color: '#4b5563',
+              fontSize: '1rem',
+              lineHeight: '1.6',
+              marginBottom: '1.5rem'
+            }}>
+              <p style={{ marginBottom: '1rem' }}>
+                HCSBot is an AI-powered assistant that provides information from HCS Technology Group's Apple device management documentation.
+              </p>
+              <p style={{ marginBottom: '1rem' }}>
+                <strong>Please note:</strong>
+              </p>
+              <ul style={{ paddingLeft: '1.5rem', marginBottom: '1rem' }}>
+                <li style={{ marginBottom: '0.5rem' }}>This tool provides information from our documentation library</li>
+                <li style={{ marginBottom: '0.5rem' }}>AI responses may occasionally contain errors or inaccuracies</li>
+                <li style={{ marginBottom: '0.5rem' }}>Always verify critical information with official documentation</li>
+                <li style={{ marginBottom: '0.5rem' }}>For urgent support needs, please contact HCS directly</li>
+              </ul>
+              <p>
+                By clicking "I Understand", you acknowledge these limitations and agree to use this tool as a reference resource.
+              </p>
+            </div>
+            <button
+              onClick={acceptDisclaimer}
+              style={{
+                width: '100%',
+                backgroundColor: '#2563eb',
+                color: 'white',
+                padding: '0.75rem 1.5rem',
+                borderRadius: '0.375rem',
+                border: 'none',
+                fontSize: '1rem',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseOver={(e) => e.target.style.backgroundColor = '#1d4ed8'}
+              onMouseOut={(e) => e.target.style.backgroundColor = '#2563eb'}
+            >
+              I Understand
+            </button>
+          </div>
+        </div>
+      )}
+
       {systemStatus !== 'ready' && (
         <div className="status-banner">
           {systemStatus === 'initializing' &&
