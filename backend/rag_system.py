@@ -52,6 +52,15 @@ class RAGSystem:
         'o365': 'Microsoft 365 (formerly Office 365)',
     }
 
+    # Map source types to human-readable display names
+    SOURCE_TYPE_NAMES = {
+        'jamf_nation': 'Jamf Nation community',
+        'jamf_docs': 'Jamf documentation',
+        'apple_support': 'Apple Support',
+        'apple_developer': 'Apple Developer documentation',
+        'external_docs': 'external documentation'
+    }
+
     def __init__(self, vector_db):
         self.vector_db = vector_db
         try:
@@ -353,10 +362,75 @@ Please provide a helpful answer based on the documentation above. Include the PD
                 if not self._results_contain_key_words(question, filtered_docs):
                     logger.info(f"Multi-word query '{question}' doesn't have good word matches in results")
                     filtered_docs = []
-            
-            if not filtered_docs:
+
+            # Check if we should search external sources
+            # Either no HCS docs, or low confidence results
+            best_similarity = max([doc.get('similarity_score', 0) for doc in filtered_docs]) if filtered_docs else 0
+            low_confidence = best_similarity < 0.3  # Threshold for low confidence
+
+            if not filtered_docs or low_confidence:
+                if low_confidence:
+                    logger.info(f"Low confidence HCS results (best: {best_similarity:.3f}), also searching external sources for query: {question}")
+                else:
+                    logger.info(f"No HCS docs found, falling back to external sources for query: {question}")
+
+                try:
+                    external_results = self.jamf_scraper.search_jamf_nation(question, max_results=3)
+
+                    if external_results:
+                        logger.info(f"Found {len(external_results)} external results")
+
+                        # Extract full content from top result
+                        top_result = external_results[0]
+                        full_article = self.jamf_scraper.extract_article(top_result['url'])
+
+                        if full_article and len(full_article.get('content', '')) > 100:
+                            # Get source type and display name
+                            source_type = full_article.get('source_type', 'external_docs')
+                            source_display_name = self.SOURCE_TYPE_NAMES.get(source_type, 'external documentation')
+
+                            # Format as a doc for the RAG system
+                            external_docs = [{
+                                'text': full_article['content'],
+                                'filename': source_display_name.title(),
+                                'url': full_article['url'],
+                                'page_number': 1,
+                                'similarity_score': 0.8,  # High confidence for search results
+                                'source_type': source_type,
+                                'published_date': full_article.get('published_date', 'recent')
+                            }]
+
+                            # Generate response using external content
+                            logger.info(f"Generating response using {source_display_name} content")
+                            response = self.generate_response(question, external_docs)
+
+                            # Add note about source and link to original page
+                            response['answer'] = (
+                                f"*Note: This answer is from [{source_display_name}]({full_article['url']}), "
+                                "as we didn't find this in our HCS documentation.*\n\n" +
+                                response['answer']
+                            )
+
+                            # Update sources to show external source
+                            response['sources'] = [{
+                                'filename': source_display_name.title(),
+                                'page_number': 1,
+                                'url': full_article['url'],
+                                'similarity_score': 0.8,
+                                'source_type': source_type
+                            }]
+
+                            return response
+
+                    # If external sources also had no results
+                    logger.info("No relevant results from external sources either")
+
+                except Exception as e:
+                    logger.error(f"Error querying external sources: {e}")
+
+                # Both HCS and external sources had no results
                 return {
-                    'answer': "I couldn't find relevant information in the HCS Apple documentation to answer your question. Please try rephrasing your question or ask about topics covered in our Apple technology guides (Jamf Pro, iOS deployment, device management, etc.).\n\n**Tip:** If you think this should have found results, please use the feedback button to report this issue.",
+                    'answer': "I couldn't find relevant information in the HCS Apple documentation or external sources (Jamf Nation, Apple Support, Apple Developer) to answer your question. Please try rephrasing your question or ask about topics covered in our Apple technology guides (Jamf Pro, iOS deployment, device management, etc.).\n\n**Tip:** If you think this should have found results, please use the feedback button to report this issue.",
                     'sources': [],
                     'query': question,
                     'context_used': 0,
