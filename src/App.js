@@ -102,13 +102,9 @@ function App() {
     }
   }, []);
 
-  // Check if disclaimer has been accepted
+  // Show disclaimer on every visit
   useEffect(() => {
-    const disclaimerStatus = localStorage.getItem('hcs_disclaimer_accepted');
-    if (disclaimerStatus === 'true') {
-      setDisclaimerAccepted(true);
-    } else if (isAuthenticated) {
-      // Show disclaimer on first visit after authentication
+    if (isAuthenticated) {
       setShowDisclaimer(true);
     }
   }, [isAuthenticated]);
@@ -327,7 +323,6 @@ function App() {
   }, []);
 
   const acceptDisclaimer = () => {
-    localStorage.setItem('hcs_disclaimer_accepted', 'true');
     setDisclaimerAccepted(true);
     setShowDisclaimer(false);
   };
