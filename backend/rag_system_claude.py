@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 import logging
 import os
 from dotenv import load_dotenv
+from jamf_nation_scraper import JamfNationScraper
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -20,6 +21,7 @@ class RAGSystemClaude:
 
     def __init__(self, vector_db):
         self.vector_db = vector_db
+        self.jamf_scraper = JamfNationScraper()
         self.anthropic_client = anthropic.Anthropic(
             api_key=os.getenv('ANTHROPIC_API_KEY')
         )

@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 import logging
 import os
 from dotenv import load_dotenv
+from jamf_nation_scraper import JamfNationScraper
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -63,6 +64,7 @@ class RAGSystem:
 
     def __init__(self, vector_db):
         self.vector_db = vector_db
+        self.jamf_scraper = JamfNationScraper()
         try:
             # Initialize OpenAI client with minimal parameters
             api_key = os.getenv('OPENAI_API_KEY')
